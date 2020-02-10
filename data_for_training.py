@@ -57,6 +57,49 @@ class PairDataset:
         squeezed_values = self.get_squeezed_features(target_feat_keys)
         self.feature_stats = cal_mean_stds(squeezed_values, target_feat_keys)
 
+    def normalize_entire_dataset(self, target_feat_keys=NORM_FEAT_KEYS):
+        if self.feature_stats is None:
+            self.update_mean_stds_of_entire_dataset()
+        
+        for pair in self.data_pairs:
+            '''
+            for f in pair.features:
+                print(f)
+            '''
+            for key in target_feat_keys:
+                mean = self.feature_stats[key]['mean']
+                stds = self.feature_stats[key]['stds']
+                #features[key] = (note_num,) 길이의 feature list
+                if not isinstance(pair.features[key], list):
+                    normalized = (pair.features[key] - mean) / stds
+                else:
+                    normalized = [(f - mean) / stds for f in pair.features[key]]
+                pair.features[key] = normalized
+
+    def dump_song_level_data(self):
+        if self.feature_stats is None:
+            self.update_mean_stds_of_entire_dataset()
+        self.normalize_entire_dataset()
+
+        for pair in self.data_pairs:
+            input_data_path = pair.piece_path[:-len('.musicxml')] + '.dat'
+            output_data_path = pair.perform_path[:-len('.mid')] + '.dat'
+            input_data = dict()
+            output_data = dict()
+            for feature in pair.features:
+                for input_key in VNET_INPUT_KEYS:
+                    input_data[input_key] = feature
+                for output_key in VNET_OUTPUT_KEYS:
+                    output_data[output_key] = feature
+
+            with open(input_data_path, "wb") as f:
+                pickle.dump(input_data, f, protocol=2)
+            with open(output_data_path, "wb") as f:
+                pickle.dump(output_data, f, protocol=2)
+            with open('stats.dat', "wb") as f:
+                pickle.dump(self.feature_stats, f, protocol=2)
+
+
     def update_dataset_split_type(self, valid_set_list=dataset_split.VALID_LIST, test_set_list=dataset_split.TEST_LIST):
         # TODO: the split
         for pair in self.data_pairs:
