@@ -64,7 +64,8 @@ data_set.save_features_by_features_as_csv(features, target_features, path='note.
 '''
 
 
-data_set = data_class.DataSet('pyScoreParser/chopin_cleaned/Haydn/', 'folder')
+#data_set = data_class.DataSet('pyScoreParser/chopin_cleaned/Haydn/', 'folder')
+data_set = data_class.DataSet('/Users/yoojin/Dropbox/data/chopin_cleaned/Haydn/', 'folder')
 data_set.load_all_performances()
 # score_extractor = feat_ext.ScoreExtractor(['composer_vec'])
 for piece in data_set.pieces:
@@ -89,3 +90,4 @@ pair_data.update_dataset_split_type()
 pair_data.update_mean_stds_of_entire_dataset()
 pair_data.save_features_for_virtuosoNet('HaydnTestFeature')
 
+pair_data.dump_song_level_data()
