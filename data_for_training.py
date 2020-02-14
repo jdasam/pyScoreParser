@@ -39,7 +39,7 @@ class PairDataset:
     def __init__(self, dataset):
         self.dataset_path = dataset.path
         self.data_pairs = []
-        self.feature_stats = None
+        self.feature_stats = {'input_keys':[], 'output_keys':[], 'norm_keys':{}}
         for piece in dataset.pieces:
             for performance in piece.performances:
                 self.data_pairs.append(ScorePerformPairData(piece, performance))
@@ -58,7 +58,7 @@ class PairDataset:
 
     def update_mean_stds_of_entire_dataset(self, target_feat_keys=NORM_FEAT_KEYS):
         squeezed_values = self.get_squeezed_features(target_feat_keys)
-        self.feature_stats = cal_mean_stds(squeezed_values, target_feat_keys)
+        self.feature_stats['norm_keys'] = cal_mean_stds(squeezed_values, target_feat_keys)
 
     def update_dataset_split_type(self, valid_set_list=dataset_split.VALID_LIST, test_set_list=dataset_split.TEST_LIST):
         # TODO: the split
@@ -102,7 +102,7 @@ class PairDataset:
         for pair_data in tqdm(self.data_pairs):
             formatted_data = dict()
             formatted_data['input_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=VNET_INPUT_KEYS)
-            formatted_data['output_data'] = convert_feature_to_VirtuosoNet_format(pair_data.features, self.feature_stats, keys=VNET_OUTPUT_KEYS)
+            formatted_data['output_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=VNET_OUTPUT_KEYS)
             for key in VNET_COPY_DATA_KEYS:
                 formatted_data[key] = pair_data.features[key]
             formatted_data['graph'] = pair_data.graph_edges
