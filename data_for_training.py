@@ -88,7 +88,8 @@ class PairDataset:
 
         for pair_data in self.data_pairs:
             formatted_data = dict()
-            formatted_data['input_data'], formatted_data['output_data'] = convert_feature_to_VirtuosoNet_format(pair_data.features, self.feature_stats)
+            formatted_data['input_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=VNET_INPUT_KEYS)
+            formatted_data['output_data'] = convert_feature_to_VirtuosoNet_format(pair_data.features, self.feature_stats, keys=VNET_OUTPUT_KEYS)
             for key in VNET_COPY_DATA_KEYS:
                 formatted_data[key] = pair_data.features[key]
             formatted_data['graph'] = pair_data.graph_edges
@@ -172,24 +173,17 @@ def cal_mean_stds(feat_datas, target_features):
     return stats
 
 
-def convert_feature_to_VirtuosoNet_format(feature_data, stats, input_keys=VNET_INPUT_KEYS, output_keys=VNET_OUTPUT_KEYS):
-    input_data = []
-    output_data = []
+def convert_feature_to_numpy(feature_data, stats, keys=VNET_INPUT_KEYS):
+    converted_data = []
 
     def check_if_global_and_normalize(key):
         value = feature_data[key]
-        if not isinstance(value, list) or len(value) != feature_data['num_notes']:  # global features like qpm_primo, tempo_primo, composer_vec
+        if not isinstance(value, list) or len(value) != feature_data[
+            'num_notes']:  # global features like qpm_primo, tempo_primo, composer_vec
             value = [value] * feature_data['num_notes']
         if key in stats:  # if key needs normalization,
             value = [(x - stats[key]['mean']) / stats[key]['stds'] for x in value]
         return value
-
-    def add_to_list(alist, item):
-        if isinstance(item, list):
-            alist += item
-        else:
-            alist.append(item)
-        return alist
 
     def cal_dimension(data_with_all_features):
         total_length = 0
@@ -201,38 +195,22 @@ def convert_feature_to_VirtuosoNet_format(feature_data, stats, input_keys=VNET_I
             total_length += length
         return total_length
 
-
-    for key in input_keys:
+    for key in keys:
         value = check_if_global_and_normalize(key)
-        input_data.append(value)
-    for key in output_keys:
-        value = check_if_global_and_normalize(key)
-        output_data.append(value)
+        converted_data.append(value)
 
-    input_dimension = cal_dimension(input_data)
-    output_dimension = cal_dimension(output_data)
-
-    input_array = np.zeros((feature_data['num_notes'], input_dimension))
-    output_array = np.zeros((feature_data['num_notes'], output_dimension))
+    data_dimension = cal_dimension(converted_data)
+    data_array = np.zeros((feature_data['num_notes'], data_dimension))
 
     current_idx = 0
 
-    for value in input_data:
+    for value in converted_data:
         if isinstance(value[0], list):
             length = len(value[0])
-            input_array[:, current_idx:current_idx + length] = value
+            data_array[:, current_idx:current_idx + length] = value
         else:
             length = 1
-            input_array[:,current_idx] = value
-        current_idx += length
-    current_idx = 0
-    for value in output_data:
-        if isinstance(value[0], list):
-            length = len(value[0])
-            output_array[:, current_idx:current_idx + length] = value
-        else:
-            length = 1
-            output_array[:,current_idx] = value
+            data_array[:, current_idx] = value
         current_idx += length
 
-    return input_array, output_array
+    return data_array
