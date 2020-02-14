@@ -231,7 +231,7 @@ def make_average_onset_cleaned_pair(position_pairs, maximum_qpm=600):
     return cleaned_list, mismatched_indexes
 
 
-def make_available_note_feature_list(notes, features, predicted):
+def make_available_note_feature_list(notes, features, is_prediction_of_model):
     class PosTempoPair:
         def __init__(self, xml_pos, pitch, qpm, index, divisions, time_pos):
             self.xml_position = xml_pos
@@ -242,32 +242,28 @@ def make_available_note_feature_list(notes, features, predicted):
             self.time_position = time_pos
             self.is_arpeggiate = False
 
-    if not predicted:
-        available_notes = []
-        num_features = len(features)
+    available_notes = []
+    num_features = len(notes)
+    if not is_prediction_of_model:
         for i in range(num_features):
-            feature = features[i]
-            if not feature.qpm == None:
+            qpm = features['beat_tempo'][i]
+            if not qpm == None:
                 xml_note = notes[i]
                 xml_pos = xml_note.note_duration.xml_position
                 time_pos = feature.midi_start
                 divisions = xml_note.state_fixed.divisions
-                qpm = feature.qpm
                 pos_pair = PosTempoPair(xml_pos, xml_note.pitch[1], qpm, i, divisions, time_pos)
                 if xml_note.note_notations.is_arpeggiate:
                     pos_pair.is_arpeggiate = True
                 available_notes.append(pos_pair)
 
     else:
-        available_notes = []
-        num_features = len(features)
         for i in range(num_features):
-            feature = features[i]
+            qpm = features['beat_tempo'][i]
             xml_note = notes[i]
             xml_pos = xml_note.note_duration.xml_position
             time_pos = xml_note.note_duration.time_position
             divisions = xml_note.state_fixed.divisions
-            qpm = feature.qpm
             pos_pair = PosTempoPair(xml_pos, xml_note.pitch[1], qpm, i, divisions, time_pos)
             available_notes.append(pos_pair)
 
