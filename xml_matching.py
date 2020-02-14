@@ -465,35 +465,6 @@ def apply_tempo_perform_features(xml_doc, xml_notes, features, start_time=0, pre
 #     return
 
 
-
-def apply_feat_to_a_note(note, feat, prev_vel):
-
-    if not feat.articulation == None:
-        note.note_duration.seconds *= 10 ** (feat.articulation)
-        # note.note_duration.seconds *= feat.articulation
-    if not feat.velocity == None:
-        note.velocity = feat.velocity
-        prev_vel = note.velocity
-    else:
-        note.velocity = prev_vel
-    if not feat.pedal_at_start == None:
-        # note.pedal.at_start = feat['pedal_at_start']
-        # note.pedal.at_end = feat['pedal_at_end']
-        # note.pedal.refresh = feat['pedal_refresh']
-        # note.pedal.refresh_time = feat['pedal_refresh_time']
-        # note.pedal.cut = feat['pedal_cut']
-        # note.pedal.cut_time = feat['pedal_cut_time']
-        # note.pedal.soft = feat['soft_pedal']
-        note.pedal.at_start = int(round(feat.pedal_at_start))
-        note.pedal.at_end = int(round(feat.pedal_at_end))
-        note.pedal.refresh = int(round(feat.pedal_refresh))
-        note.pedal.refresh_time = feat.pedal_refresh_time
-        note.pedal.cut = int(round(feat.pedal_cut))
-        note.pedal.cut_time = feat.pedal_cut_time
-        note.pedal.soft = int(round(feat.soft_pedal))
-    return note, prev_vel
-
-
 def make_new_note(note, time_a, time_b, articulation, loudness, default_velocity):
     index = binary_index(time_a, note.start)
     new_onset = cal_new_onset(note.start, time_a, time_b)
