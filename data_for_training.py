@@ -40,6 +40,7 @@ class PairDataset:
         self.dataset_path = dataset.path
         self.data_pairs = []
         self.feature_stats = {'input_keys':[], 'output_keys':[], 'norm_keys':{}}
+        # feature_stats.input_keys: list of dictionary about key
         for piece in dataset.pieces:
             for performance in piece.performances:
                 self.data_pairs.append(ScorePerformPairData(piece, performance))
@@ -80,13 +81,15 @@ class PairDataset:
     def shuffle_data(self):
         random.shuffle(self.data_pairs)
 
-    def save_features_for_virtuosoNet(self, save_folder):
+    def save_features_for_virtuosoNet(self, save_folder, input_keys=VNET_INPUT_KEYS, output_keys=VNET_OUTPUT_KEYS):
         '''
         Convert features into format of VirtuosoNet training data
         :return: None (save file)
         '''
         def _flatten_path(file_path):
             return '_'.join(file_path.parts)
+
+        self.update_stats_keys(input_keys, output_keys)
 
         save_folder = Path(save_folder)
         split_types = ['train', 'valid', 'test']
@@ -95,14 +98,10 @@ class PairDataset:
         for split in split_types:
             (save_folder / split).mkdir()
 
-        training_data = []
-        validation_data = []
-        test_data = []
-
         for pair_data in tqdm(self.data_pairs):
             formatted_data = dict()
-            formatted_data['input_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=VNET_INPUT_KEYS)
-            formatted_data['output_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=VNET_OUTPUT_KEYS)
+            formatted_data['input_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=input_keys)
+            formatted_data['output_data'] = convert_feature_to_numpy(pair_data.features, self.feature_stats, keys=output_keys)
             for key in VNET_COPY_DATA_KEYS:
                 formatted_data[key] = pair_data.features[key]
             formatted_data['graph'] = pair_data.graph_edges
@@ -117,7 +116,30 @@ class PairDataset:
   
         with open(save_folder / "stat.dat", "wb") as f:
             pickle.dump(self.feature_stats, f, protocol=2)
-        
+
+    def update_stats_keys(self, input_keys, output_keys):
+        self.feature_stats['input_keys'] = [{'name': key, 'index': 0, 'length': 0} for key in input_keys]
+        self.feature_stats['output_keys'] = [{'name': key, 'index': 0, 'length': 0} for key in output_keys]
+        self.feature_stats['input_keys'] = self.update_idx_and_length(self.feature_stats['input_keys'], input_keys)
+        self.feature_stats['output_keys'] = self.update_idx_and_length(self.feature_stats['output_keys'], output_keys)
+
+    def update_idx_and_length(self, stat_dict, keys):
+        cur_idx = 0
+        if len(self.data_pairs) > 0:
+            sample_features = self.data_pairs[0].features
+            for i, key in enumerate(keys):
+                sample = sample_features[key]
+                if isinstance(sample[0], list):
+                    length = len(sample[0])
+                else:
+                    length = 1
+                stat_dict[i]['length'] = length
+                stat_dict[i]['index'] = cur_idx
+                cur_idx += length
+        return stat_dict
+
+
+
 
 def get_feature_from_entire_dataset(dataset, target_score_features, target_perform_features):
     # e.g. feature_type = ['score', 'duration'] or ['perform', 'beat_tempo']
@@ -186,6 +208,12 @@ def cal_mean_stds(feat_datas, target_features):
 
 def convert_feature_to_numpy(feature_data, stats, keys=VNET_INPUT_KEYS):
     converted_data = []
+    if keys == [x['name'] for x in stats['input_keys']]:
+        selected_keys = stats['input_keys']
+    elif keys == [x['name'] for x in stats['output_keys']] :
+        selected_keys = stats['output_keys']
+    else:
+        print('Error: Cannot figure out whether the input is input_keys or output_keys')
 
     def check_if_global_and_normalize(key):
         value = feature_data[key]
@@ -198,12 +226,13 @@ def convert_feature_to_numpy(feature_data, stats, keys=VNET_INPUT_KEYS):
 
     def cal_dimension(data_with_all_features):
         total_length = 0
-        for feat_data in data_with_all_features:
+        for i, feat_data in enumerate(data_with_all_features):
             if isinstance(feat_data[0], list):
                 length = len(feat_data[0])
             else:
                 length = 1
             total_length += length
+            selected_keys[i]['length'] = length
         return total_length
 
     for key in keys:
@@ -215,7 +244,7 @@ def convert_feature_to_numpy(feature_data, stats, keys=VNET_INPUT_KEYS):
 
     current_idx = 0
 
-    for value in converted_data:
+    for i, value in enumerate(converted_data):
         if isinstance(value[0], list):
             length = len(value[0])
             data_array[:, current_idx:current_idx + length] = value
