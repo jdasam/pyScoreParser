@@ -298,3 +298,14 @@ def get_average_onset_time(notes_in_chord_saved, threshold=0.2):
             notes_in_chord, average_onset_time = get_average_onset_time(notes_in_chord, threshold)
 
     return notes_in_chord, average_onset_time
+
+
+def make_midi_oriented_pairs(piece, perform):
+    pairs = []
+    for i in range(len(perform.midi_notes)):
+        if i in perform.match_between_xml_perf:
+            idx = perform.match_between_xml_perf.index(i)
+            pairs.append({'midi': i, 'xml': idx})
+        else:
+            pairs.append([])
+    return pairs

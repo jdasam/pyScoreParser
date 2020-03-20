@@ -283,8 +283,9 @@ class PieceData:
 
     def _align_perform_with_score(self, perform):
         perform.match_between_xml_perf = matching.match_score_pair2perform(self.score.score_pairs, perform.midi_notes, perform.corresp)
-        perform.pairs = matching.make_xml_midi_pair(self.score.xml_notes, perform.midi_notes, perform.match_between_xml_perf)
-        perform.pairs, perform.valid_position_pairs = matching.make_available_xml_midi_positions(perform.pairs)
+        # perform.pairs = matching.make_xml_midi_pair(self.score.xml_notes, perform.midi_notes, perform.match_between_xml_perf)
+        # perform.pairs, perform.valid_position_pairs = matching.make_available_xml_midi_positions(perform.pairs)
+        perform.midi_oriented_pairs = matching.make_midi_oriented_pairs(self, perform)
 
         print('Performance path is ', perform.midi_path)
         perform._count_matched_notes()
@@ -365,13 +366,17 @@ class PerformData:
         self.midi = midi_utils.to_midi_zero(self.midi_path)
         self.midi = midi_utils.add_pedal_inf_to_notes(self.midi)
         self.midi_notes = self.midi.instruments[0].notes
+        self.midi_notes.sort(key=lambda x: (x.start, x.pitch))
         self.corresp_path = os.path.splitext(self.midi_path)[0] + '_infer_corresp.txt'
         self.corresp = matching.read_corresp(self.corresp_path)
         self.perform_features = {}
+        self.midi_features = {} # for scorify project
+        self.xml_features = {} # for scorify project
         self.match_between_xml_perf = None
         
         self.pairs = []
         self.valid_position_pairs = []
+        self.midi_oriented_pairs = []
 
         self.num_matched_notes = 0
         self.num_unmatched_notes = 0
