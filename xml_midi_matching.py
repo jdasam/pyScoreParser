@@ -144,15 +144,6 @@ def find_by_attr(alist, value1, value2):
 
 def make_available_xml_midi_positions(pairs):
     # global NUM_EXCLUDED_NOTES
-    class PositionPair:
-        def __init__(self, xml_pos, time, pitch, index, divisions):
-            self.xml_position = xml_pos
-            self.time_position = time
-            self.pitch = pitch
-            self.index = index
-            self.divisions = divisions
-            self.is_arpeggiate = False
-
     available_pairs = []
     num_pairs = len(pairs)
     for i in range(num_pairs):
@@ -165,7 +156,6 @@ def make_available_xml_midi_positions(pairs):
             divisions = xml_note.state_fixed.divisions
             if not xml_note.note_duration.is_grace_note:
                 pos_pair = {'xml_position': xml_pos, 'time_position': time, 'pitch': xml_note.pitch[1], 'index':i, 'divisions':divisions}
-                # pos_pair = PositionPair(xml_pos, time, xml_note.pitch[1], i, divisions)
                 if xml_note.note_notations.is_arpeggiate:
                     pos_pair['is_arpeggiate'] = True
                 else:
