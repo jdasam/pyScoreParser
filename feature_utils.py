@@ -242,7 +242,7 @@ def cal_tempo_by_positions(beats, position_pairs):
 
     Args:
         beats (1-D list): list of beats in piece
-        position_pairs (1-D list): list of valid pair dictionaries {xml_note, midi_note} 
+        position_pairs (1-D list): list of valid pair dictionaries {xml_position, time_position, pitch, xml_index, divisions} 
     
     Returns:
         tempos (1-D list): list of .Tempo object
