@@ -149,14 +149,14 @@ def extract_score_features(xml_notes, measure_positions, beats=None, qpm_primo=0
         # feature.duration = note.note_duration.duration / measure_length
         feature.duration = note.note_duration.duration / note.state_fixed.divisions
         # feature.duration_ratio = calculate_duration_ratio(xml_notes, i)
-        pitch_interval, feature.duration_ratio = cal_pitch_interval_and_duration_ratio(xml_notes, i)
+        # pitch_interval, feature.duration_ratio = cal_pitch_interval_and_duration_ratio(xml_notes, i)
         # feature.pitch_interval = pitch_interval_into_vector(pitch_interval)
-        if pitch_interval is None:
-            feature.pitch_interval = 0
-            feature.no_following_note = 1
-        else:
-            feature.pitch_interval = pitch_interval
-            feature.no_following_note = 0
+        # if pitch_interval is None:
+        #     feature.pitch_interval = 0
+        #     feature.no_following_note = 1
+        # else:
+        #     feature.pitch_interval = pitch_interval
+        #     feature.no_following_note = 0
 
         beat_position = (note_position - measure_positions[measure_index]) / measure_length
         feature.beat_position = beat_position
