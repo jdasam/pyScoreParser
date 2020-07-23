@@ -1502,28 +1502,44 @@ def interpolation(a, list1, list2, index):
 def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_pedal=False, disklavier=False):
     piano_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
-    piano = pretty_midi.Instrument(program=piano_program)
-    # pedal_threhsold = 60
-    # pedal_time_margin = 0.2
+    if isinstance(midi_notes[0], list): #multi instruments
+        num_instruments = len(midi_notes)
+        for i in range(num_instruments):
+            piano = pretty_midi.Instrument(program=piano_program)
+            for note in midi_notes[i]:
+                piano.notes.append(note)
+            last_note_end = midi_notes[i][-1].end
+            if bool_pedal:
+                for pedal in midi_pedals[i]:
+                    if pedal.value < pedal_cleaning.THRESHOLD:
+                        pedal.value = 0
+            last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
+            midi_pedals[i].append(last_pedal)
+            piano.control_changes = midi_pedals[i]
+            piano_midi.instruments.append(piano)
 
-    for note in midi_notes:
-        piano.notes.append(note)
+        # last_note_end = max([x[-1].end for x in midi_notes])
 
-    piano_midi.instruments.append(piano)
+    else:
+        piano = pretty_midi.Instrument(program=piano_program)
+        # pedal_threhsold = 60
+        # pedal_time_margin = 0.2
+        for note in midi_notes:
+            piano.notes.append(note)
 
+        piano_midi.instruments.append(piano)
+        last_note_end = midi_notes[-1].end
     # piano_midi = midi_utils.save_note_pedal_to_CC(piano_midi)
 
-    if bool_pedal:
-        for pedal in midi_pedals:
-            if pedal.value < pedal_cleaning.THRESHOLD:
-                pedal.value = 0
+        if bool_pedal:
+            for pedal in midi_pedals:
+                if pedal.value < pedal_cleaning.THRESHOLD:
+                    pedal.value = 0
+        # end pedal 3 seconds after the last note
+        last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
+        midi_pedals.append(last_pedal)
 
-    last_note_end = midi_notes[-1].end
-    # end pedal 3 seconds after the last note
-    last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
-    midi_pedals.append(last_pedal)
-
-    piano_midi.instruments[0].control_changes = midi_pedals
+        piano_midi.instruments[0].control_changes = midi_pedals
 
     #
     # if disklavier:
@@ -1712,12 +1728,17 @@ def time_signature_to_vector(time_signature):
     return numerator_vec + denominator_vec
 
 
-def xml_notes_to_midi(xml_notes):
-    midi_notes = []
+def xml_notes_to_midi(xml_notes, multi_instruments=False):
+    if multi_instruments:
+        num_instruments = max([x.voice for x in xml_notes]) // 10 + 1
+        midi_notes = [ [] for i in range(num_instruments) ]
+    else:
+        midi_notes = []
+    
     for note in xml_notes:
-        if note.is_overlapped:  # ignore overlapped notes.
+        if note.is_overlapped and not multi_instruments:  # ignore overlapped notes.
             continue
-
+        
         pitch = note.pitch[1]
         start = note.note_duration.time_position
         end = start + note.note_duration.seconds
@@ -1735,10 +1756,19 @@ def xml_notes_to_midi(xml_notes):
         # midi_note.pedal_cut = note.pedal.cut
         # midi_note.pedal_cut_time = note.pedal.cut_time
         # midi_note.soft_pedal = note.pedal.soft
-
-        midi_notes.append(midi_note)
-
-    midi_pedals = pedal_cleaning.predicted_pedals_to_midi_pedals(xml_notes)
+        if multi_instruments:
+            instrument_idx = note.voice // 10
+            midi_notes[instrument_idx].append(midi_note)
+        else:
+            midi_notes.append(midi_note)
+    if multi_instruments:
+        midi_pedals = []
+        for i in range(num_instruments):
+            notes = [note for note in xml_notes if (note.voice//10)==i]
+            pedals = pedal_cleaning.predicted_pedals_to_midi_pedals(notes)
+            midi_pedals.append(pedals)
+    else:
+        midi_pedals = pedal_cleaning.predicted_pedals_to_midi_pedals(xml_notes)
 
     return midi_notes, midi_pedals
 
