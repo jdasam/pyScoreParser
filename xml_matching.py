@@ -1499,7 +1499,7 @@ def interpolation(a, list1, list2, index):
     return b1+ (a-a1) / (a2-a1) * (b2 - b1)
 
 
-def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_pedal=False, disklavier=False):
+def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, part_names=None, bool_pedal=False, disklavier=False):
     piano_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
     if isinstance(midi_notes[0], list): #multi instruments
@@ -1518,6 +1518,8 @@ def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_ped
             last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
             midi_pedals[i].append(last_pedal)
             piano.control_changes = midi_pedals[i]
+            if part_names is not None:
+                piano.name=part_names[i]
             piano_midi.instruments.append(piano)
 
         # last_note_end = max([x[-1].end for x in midi_notes])
@@ -1822,8 +1824,10 @@ def read_xml_to_array(path_name, means, stds, start_tempo, composer_name, vel_st
         # temp_x.append(feat.is_beat)
         test_x.append(temp_x)
         note_locations.append(feat.note_location)
+    
+    part_names = [ part.score_part.part_name for part in xml_object.parts]
 
-    return test_x, xml_notes, xml_object, edges, note_locations
+    return test_x, xml_notes, xml_object, edges, note_locations, part_names
 
 
 def find_tempo_change(xml_notes):
