@@ -1506,6 +1506,8 @@ def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_ped
         num_instruments = len(midi_notes)
         for i in range(num_instruments):
             piano = pretty_midi.Instrument(program=piano_program)
+            if len(midi_notes[i]) == 0: # there are no notes in the i-th track
+                continue
             for note in midi_notes[i]:
                 piano.notes.append(note)
             last_note_end = midi_notes[i][-1].end
