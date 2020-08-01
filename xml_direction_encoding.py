@@ -460,7 +460,7 @@ def define_dyanmic_embedding_table():
 
 
 def define_tempo_embedding_table():
-    # [abs tempo, abs_tempo_added, tempo increase or decrease, sudden change]
+    # [abs tempo, abs_tempo_added, tempo increase or decrease, sudden change, genre that suggests tempo]
     embed_table = EmbeddingTable()
     embed_table.append(EmbeddingKey('scherzo', 4, 1))
     embed_table.append(EmbeddingKey('menuetto', 4, -1))
