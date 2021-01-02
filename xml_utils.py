@@ -12,6 +12,7 @@ get xml information like note information to generate or modify xml information
 """
 import pretty_midi
 import copy
+import numpy as np
 
 from . import xml_direction_encoding as dir_enc
 from . import pedal_cleaning, utils
@@ -500,7 +501,7 @@ def cal_up_trill_pitch(pitch_tuple, key, final_key, measure_accidentals):
     return up_pitch, final_pitch_string
 
 
-def xml_notes_to_midi(xml_notes):
+def xml_notes_to_midi(xml_notes, divide_channels=False):
     """ Returns midi-transformed xml notes in pretty_midi.Note() format
 
     Args:
@@ -515,7 +516,15 @@ def xml_notes_to_midi(xml_notes):
         >>> midi_notes, midi_pedals = xml_utils.xml_notes_to_midi(self.xml_notes)
 
     """
-    midi_notes = []
+    if divide_channels:
+        channels = sorted(list(set([note.midi_channel for note in xml_notes])))
+        n_channels = len(channels)
+        idx_array = np.zeros((max(channels)+1,))
+        for n in channels:
+            idx_array[n] = np.nonzero(np.asarray(channels)==n)[0]
+    else:
+        n_channels = 1
+    midi_notes = [[] for el in range(n_channels)]
     for note in xml_notes:
         if note.is_overlapped:  # ignore overlapped notes.
             continue
@@ -530,7 +539,10 @@ def xml_notes_to_midi(xml_notes):
         velocity = int(min(max(note.velocity,0),127))
         midi_note = pretty_midi.Note(velocity=velocity, pitch=pitch, start=start, end=end)
 
-        midi_notes.append(midi_note)
+        if divide_channels:
+            midi_notes[int(idx_array[note.midi_channel])].append(midi_note)
+        else:
+            midi_notes[0].append(midi_note)
     midi_pedals = pedal_cleaning.predicted_pedals_to_midi_pedals(xml_notes)
 
     return midi_notes, midi_pedals

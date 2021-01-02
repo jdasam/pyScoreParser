@@ -443,7 +443,7 @@ def save_note_pedal_to_CC(midi_obj, bool_pedal=False, disklavier=False):
     return midi_obj
 
 
-def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_pedal=False, disklavier=False):
+def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_pedal=False, disklavier=False, multi_channel=False):
     """ Generate midi file by using received midi notes and midi pedals
 
     Args:
@@ -452,6 +452,7 @@ def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_ped
         output_name (string) : output midi file name
         bool_pedal (boolean) : check whether the method needs to handle meaningless pedal values
         disklavier (boolean) : unused 
+        multi_channel: if True, get midi_notes input as list of list of notes, each list corresponds to midi channel.
 
     Returns:
         -
@@ -464,16 +465,19 @@ def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_ped
     """
     piano_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
-    piano = pretty_midi.Instrument(program=piano_program)
     if not isinstance(output_name, str):
         output_name = str(output_name)
     # pedal_threhsold = 60
     # pedal_time_margin = 0.2
-
-    for note in midi_notes:
-        piano.notes.append(note)
-
-    piano_midi.instruments.append(piano)
+    if multi_channel:
+        for n in range(len(midi_notes)):
+            piano_midi.instruments.append(pretty_midi.Instrument(program=piano_program))
+            for note in midi_notes[n]:
+                piano_midi.instruments[n].notes.append(note)
+    else:
+        piano_midi.instruments.append(pretty_midi.Instrument(program=piano_program))
+        for note in midi_notes:
+            piano_midi.instruments.notes.append(note)
 
     # piano_midi = midi_utils.save_note_pedal_to_CC(piano_midi)
 
@@ -481,8 +485,10 @@ def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_ped
         for pedal in midi_pedals:
             if pedal.value < 64:
                 pedal.value = 0
-
-    last_note_end = midi_notes[-1].end
+    if multi_channel:
+        last_note_end = max([el[-1].end for el in midi_notes])
+    else: 
+        last_note_end = midi_notes[-1].end
     # end pedal 3 seconds after the last note
     last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
     midi_pedals.append(last_pedal)
