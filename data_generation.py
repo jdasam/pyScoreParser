@@ -1,13 +1,14 @@
 from __future__ import division
 import pickle
 import random
-import xml_matching
 import copy
 import pandas
 import numpy as np
 import argparse
 import os
-import model_constants as cons
+
+from . import xml_matching as xml_matching
+from . import dataset_split as split
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--regression', default=True, type=lambda x: (str(x).lower() == 'true'))
@@ -20,8 +21,8 @@ NUM_NORMALIZE_FEATURE = [8, 19, 4]
 REGRESSION = args.regression
 print('Data type is regression: ', args.regression)
 
-VALID_LIST = cons.VALID_LIST
-TEST_LIST = cons.TEST_LIST
+VALID_LIST = split.VALID_LIST
+TEST_LIST = split.TEST_LIST
 
 def save_features_as_vector(dataset, num_train, num_valid, save_name):
     complete_xy = []
@@ -33,49 +34,17 @@ def save_features_as_vector(dataset, num_train, num_valid, save_name):
         num_piece += 1
         for perform in piece:
             num_perform +=1
-            train_x = []
-            train_y = []
-            align_matched_status = []
-            pedal_status = []
-            # is_beat_list = []
-            # beat_numbers = []
-            # measure_numbers = []
-            # voice_numbers = []
-            note_locations = []
             features = perform['features']
             score = perform['score']
             composer_vec = perform['composer']
             score_graph = perform['graph']
 
-            for feature in features:
-                total_notes += 1
-                if not feature.qpm == None:
-                    train_x.append(
-                            [feature.midi_pitch, feature.duration, feature.beat_importance, feature.measure_length,
-                             feature.qpm_primo, feature.following_rest, feature.distance_from_abs_dynamic,
-                             feature.distance_from_recent_tempo, feature.beat_position, feature.xml_position,
-                             feature.grace_order, feature.preceded_by_grace_note, feature.followed_by_fermata_rest]
-                            + feature.pitch + feature.tempo + feature.dynamic + feature.time_sig_vec +
-                            feature.slur_beam_vec + composer_vec + feature.notation + feature.tempo_primo)
+            train_x, train_y = xml_matching.convert_features_to_vector(features, composer_vec)
+            align_matched_status = [f.align_matched for f in features]
+            pedal_status = [f.articulation_loss_weight for f in features]
+            note_locations = [f.note_location for f in features]
+            total_notes += len(train_x)
 
-                    temp_y = [feature.qpm, feature.velocity, feature.xml_deviation,
-                              feature.articulation, feature.pedal_refresh_time, feature.pedal_cut_time,
-                              feature.pedal_at_start, feature.pedal_at_end, feature.soft_pedal,
-                              feature.pedal_refresh,
-                              feature.pedal_cut, feature.qpm, feature.beat_dynamic, feature.measure_tempo, feature.measure_dynamic] \
-                             + feature.trill_param
-
-                    train_y.append(temp_y)
-                    align_matched_status.append(feature.align_matched)
-                    pedal_status.append(feature.articulation_loss_weight)
-                    # prev_feat[0] = feature.previous_tempo
-                    num_total_datapoint += 1
-                    note_loc = feature.note_location
-                    note_locations.append(note_loc)
-                    # is_beat_list.append(feature.is_beat)
-                    # beat_numbers.append(feature.beat_index)
-                    # measure_numbers.append(feature.measure_index)
-                    # voice_numbers.append(feature.voice)
             # windowed_train_x = make_windowed_data(train_x, input_length )
             # complete_xy.append([train_x, train_y, previous_y, beat_numbers, measure_numbers, voice_numbers])
             complete_xy.append([train_x, train_y, note_locations, align_matched_status, pedal_status, score_graph, score])
@@ -90,6 +59,8 @@ def save_features_as_vector(dataset, num_train, num_valid, save_name):
 
     print('Total data point is ', num_total_datapoint)
     print('Number of total piece is ', num_piece, ' and total performance is ', num_perform)
+    print('Number of training perform is ', num_train, ' number of valid perform is', num_valid, ' and test performance is ', len(complete_xy) - num_train - num_valid)
+
     print(total_notes)
     num_input = len(train_x[0])
     num_output = len(train_y[0])
@@ -276,7 +247,7 @@ def key_augmentation(data_x, key_change):
     return data_x_aug
 
 
-def load_entire_subfolder(path):
+def load_entire_subfolder(path, minimum_perform_limit=0):
     entire_pairs = []
     num_train_pairs = 0
     num_valid_pairs = 0
@@ -297,11 +268,10 @@ def load_entire_subfolder(path):
                 break
         if not skip:
             xml_name = foldername + 'musicxml_cleaned.musicxml'
-
             if os.path.isfile(xml_name):
                 print(foldername)
                 piece_pairs = xml_matching.load_pairs_from_folder(foldername)
-                if piece_pairs is not None:
+                if piece_pairs is not None and len(piece_pairs) > minimum_perform_limit:
                     entire_pairs.append(piece_pairs)
                     num_train_pairs += len(piece_pairs)
 
@@ -314,7 +284,7 @@ def load_entire_subfolder(path):
                 if os.path.isfile(xml_name):
                     print(foldername)
                     piece_pairs = xml_matching.load_pairs_from_folder(foldername)
-                    if piece_pairs is not None:
+                    if piece_pairs is not None and len(piece_pairs) > minimum_perform_limit:
                         entire_pairs.append(piece_pairs)
                         num_valid_pairs += len(piece_pairs)
                         print('num valid pairs', num_valid_pairs)
@@ -328,7 +298,7 @@ def load_entire_subfolder(path):
                 if os.path.isfile(xml_name):
                     print(foldername)
                     piece_pairs = xml_matching.load_pairs_from_folder(foldername)
-                    if piece_pairs is not None:
+                    if piece_pairs is not None and len(piece_pairs) > minimum_perform_limit:
                         entire_pairs.append(piece_pairs)
                         num_test_pairs += len(piece_pairs)
 
@@ -340,5 +310,5 @@ def load_entire_subfolder(path):
 
 
 # xml_matching.check_data_split('chopin_cleaned/')
-chopin_pairs, num_train_pairs, num_valid_pairs, num_test_pairs = load_entire_subfolder('chopin_cleaned/')
-save_features_as_vector(chopin_pairs, num_train_pairs, num_valid_pairs, 'icml_grace')
+chopin_pairs, num_train_pairs, num_valid_pairs, num_test_pairs = load_entire_subfolder('pyScoreParser/chopin_cleaned/', 4)
+save_features_as_vector(chopin_pairs, num_train_pairs, num_valid_pairs, 'perform_style_set_5')
