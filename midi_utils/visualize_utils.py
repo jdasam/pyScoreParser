@@ -15,12 +15,13 @@ def midi_name(midi_num):
   return octave, note
 
 
-def draw_piano_roll(roll, draw_range=None, fps=10, midi_min=21, midi_max=108):
+def draw_piano_roll(roll, draw_range=None, fps=10, midi_min=21, midi_max=108, tick_interval=5):
   if not draw_range:
     draw_range = [roll.shape[0], roll.shape[1]]
+  draw_len = draw_range[1] - draw_range[0]
   plt.imshow(roll[draw_range[0]: draw_range[1], :].T, interpolation='nearest', aspect='auto',
              origin='lower', cmap=plt.get_cmap('gray_r'))
-  tick_range = range((draw_range[1] - draw_range[0]) // fps)
+  tick_range = range(0, draw_len // fps, tick_interval)
 
   # draw guide lines (octave line)
   number = 12
@@ -30,8 +31,13 @@ def draw_piano_roll(roll, draw_range=None, fps=10, midi_min=21, midi_max=108):
   n_midi = midi_max - midi_min + 1
   edge = range(12 - midi_min % 12, n_midi, 12)
   for el in edge:
-    plt.plot(draw_range, [el, el], color='red', linewidth=1, linestyle="--", alpha=0.8)
-  midi_ticks = [midi_name(el)[1] + midi_name(el)[0] for el in range(midi_min, midi_max)]
+    plt.plot([0, draw_len], [el, el], color='red', linewidth=1, linestyle="--", alpha=0.8)
+
+  '''
+  # show every note name
+  # midi_ticks = [midi_name(el)[1] + midi_name(el)[0] for el in range(midi_min, midi_max)]
+  '''
+  midi_ticks = [midi_name(el)[1] + midi_name(el)[0] for el in [el + midi_min for el in edge]]
   '''
   # only shows white notes names
   for n in range(len(midi_ticks)):
@@ -40,10 +46,10 @@ def draw_piano_roll(roll, draw_range=None, fps=10, midi_min=21, midi_max=108):
   '''
 
   for n in range(n_midi):
-    plt.plot(draw_range, [n, n], color=colors[n % 12], linewidth=7, linestyle="-", alpha=0.07)
-  plt.yticks(range(n_midi), midi_ticks)
+    plt.plot([0, draw_len], [n, n], color=colors[n % 12], linewidth=7, linestyle="-", alpha=0.07)
+  plt.yticks(edge, midi_ticks)
   plt.ylim([0 - 0.5, n_midi - 0.5])
 
-  plt.xticks([el * fps for el in tick_range], [el + draw_range[0] for el in tick_range])
+  plt.xticks([el * fps for el in tick_range], [el + draw_range[0] // fps for el in tick_range])
   plt.xlabel('time(sec)')
-  plt.xlim(draw_range)
+  plt.xlim([0, draw_len])
