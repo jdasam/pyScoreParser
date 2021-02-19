@@ -57,3 +57,6 @@ def get_item_by_xml_position(alist, item):
     index = binary_index(pos_list, item_pos)
 
     return alist[index]
+
+def get_nonzero_list(alist):
+    return [el for el in alist if el != []]

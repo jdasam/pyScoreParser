@@ -20,9 +20,10 @@ from musicxml_parser import MusicXMLDocument
 from midi_utils import midi_utils
 import score_as_graph as score_graph, xml_midi_matching as matching
 import xml_utils
+import utils
 import feature_extraction
 
-align_dir = '/home/ilcobo2/projects/pyScoreParser/AlignmentTool_v190813'
+align_dir = '/home/ilcobo2/AlignmentTool_v190813'
 
 DEFAULT_SCORE_FEATURES = ['midi_pitch', 'duration', 'beat_importance', 'measure_length', 'qpm_primo',
                           'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
@@ -81,8 +82,6 @@ class DataSet:
                 for perf in piece.performances:
                     self.performances.append(perf)
             except Exception as ex:
-                # TODO: TGK: this is ambiguous. Can we specify which file 
-                # (score? performance? matching?) and in which function the error occur?
                 traceback.print_tb(ex.__traceback__)
                 print(f'Error while processing {scores[n]}. Error type :{ex}')
         self.num_performances = len(self.performances)
@@ -286,8 +285,12 @@ class PieceData:
 
     def _align_perform_with_score(self, perform):
         perform.match_between_xml_perf = matching.match_score_pair2perform(self.score.score_pairs, perform.midi_notes, perform.corresp)
+        match = utils.get_nonzero_list(perform.match_between_xml_perf)
         perform.pairs = matching.make_xml_midi_pair(self.score.xml_notes, perform.midi_notes, perform.match_between_xml_perf)
+        match_three = utils.get_nonzero_list(perform.pairs)
         perform.pairs, perform.valid_position_pairs = matching.make_available_xml_midi_positions(perform.pairs)
+        clean_match = utils.get_nonzero_list(perform.pairs)
+        print(f'match after Nakamura:{len(match)} (diff:{len(self.score_pairs) - len(match)}), \nmatch_three:{len(match_three)}, match after cleaning:{len(clean_match)} (diff:{len(match) - len(clean_match)})')
 
         print('Performance path is ', perform.midi_path)
         perform._count_matched_notes()
@@ -316,13 +319,14 @@ class PieceMeta:
         for perf in self.perform_lists:
             align_file_name = os.path.splitext(perf)[0] + '_infer_corresp.txt'
             # align_file_name = Path(perf).parent / (Path(perf).stem + '_infer_corresp.txt')
-            print(align_file_name)
             if os.path.isfile(align_file_name):
+                print(f'{align_file_name} already exists. load it.')
                 aligned_perf.append(perf)
-                continue
-            self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
-            if os.path.isfile(align_file_name): # check once again whether the alignment was successful
-                aligned_perf.append(perf)
+            else:
+                print(f'make {align_file_name}.')
+                self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
+                if os.path.isfile(align_file_name): # check once again whether the alignment was successful
+                    aligned_perf.append(perf)
 
         self.perf_file_list = aligned_perf
 
@@ -347,7 +351,7 @@ class PieceMeta:
                 os.chdir(align_dir)
                 subprocess.check_call(["sh", "MIDIToMIDIAlign.sh", "score", "infer"])
             except subprocess.CalledProcessError as error:
-                print(error)
+                traceback.print_tb(error.__traceback__)
                 align_success = False
                 print('Fail to process {}'.format(midi_file_path))
                 os.chdir(current_dir)
@@ -363,6 +367,10 @@ class PieceMeta:
             shutil.move('score_spr.txt', os.path.join(align_dir, '_score_spr.txt'))
             shutil.copy('score_fmt3x.txt', score_midi_path.replace('.mid', 'score_fmt3x.txt'))
             os.chdir(current_dir)
+        else:
+            # This should not be happen
+            print('Align not success')
+            raise AssertionError
 
 
 # performance data class
@@ -419,8 +427,7 @@ class ScoreData:
         self._load_score_xml(xml_path)
         if not read_xml_only:
             self._load_or_make_score_midi(score_midi_path)
-            self._match_score_xml_to_midi()
-
+            self._match_score_xml_to_midi() 
     def __str__(self):
         return str(self.__dict__)
 
@@ -444,6 +451,9 @@ class ScoreData:
         print(score_midi_path)
         if not os.path.isfile(score_midi_path):
             self.make_score_midi(score_midi_path)
+            print(f'create score midi: {score_midi_path}.')
+        else: 
+            print(f'score midi exist: {score_midi_path}. load score midi')
         self.score_midi = midi_utils.to_midi_zero(score_midi_path)
         self.score_midi_notes = self.score_midi.instruments[0].notes
         self.score_midi_notes.sort(key=lambda x:x.start)
@@ -454,7 +464,10 @@ class ScoreData:
         
     def _match_score_xml_to_midi(self):
         self.score_match_list = matching.match_xml_to_midi(self.xml_notes, self.score_midi_notes)
+        matched = utils.get_nonzero_list(self.score_match_list)
+        print(f'xml_notes: {len(self.xml_notes)}, score_midi_notes: {len(self.score_midi_notes)}, matched(score_pairs): {len(matched)}')
         self.score_pairs = matching.make_xml_midi_pair(self.xml_notes, self.score_midi_notes, self.score_match_list)
+        print(f'nonzero_score_pairs: {len(utils.get_nonzero_list(self.score_pairs))}')
 
 
 class YamahaDataset(DataSet):

@@ -172,6 +172,7 @@ def make_available_xml_midi_positions(pairs):
                     pos_pair['is_arpeggiate'] = False
                 available_pairs.append(pos_pair)
 
+    print(f'available_pairs: {len(available_pairs)}')
     # available_pairs = save_lowest_note_on_same_position(available_pairs)
     available_pairs, mismatched_indexes = make_average_onset_cleaned_pair(available_pairs)
     print('Number of mismatched notes: ', len(mismatched_indexes))
