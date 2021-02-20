@@ -80,6 +80,8 @@ def extract_directions_by_keywords(directions, keywords):
 def check_direction_by_keywords(dir, keywords):
     if dir.type['type'] in keywords:
         return True
+    elif dir.type['content'] is None:
+        return False
     elif dir.type['type'] == 'words':
         dir_word = word_regularization(dir.type['content'])
         # dir_word = dir.type['content'].replace(',', '').replace('.', '').replace('\n', ' ').replace('(','').replace(')','').lower()
@@ -96,6 +98,8 @@ def check_direction_by_keywords(dir, keywords):
         for key in keywords: # words like 'sempre più mosso'
             if len(key) > 2 and key in dir_word:
                 return True
+    else:
+        return False
 
 
 def get_dynamics(directions):
