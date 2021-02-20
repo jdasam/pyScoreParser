@@ -83,7 +83,7 @@ class DataSet:
                     self.performances.append(perf)
             except Exception as ex:
                 traceback.print_tb(ex.__traceback__)
-                print(f'Error while processing {scores[n]}. Error type :{ex}')
+                print(f'Error while processing {perf.piece}. Error type :{ex}')
         self.num_performances = len(self.performances)
 
     '''
@@ -324,7 +324,15 @@ class PieceMeta:
                 aligned_perf.append(perf)
             else:
                 print(f'make {align_file_name}.')
-                self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
+                try:
+                    self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
+                except:
+                    shutil.copy(os.path.abspath(perf), os.path.abspath(perf)+'old')
+                    midi_utils.to_midi_zero(os.path.abspath(perf), save_midi=True, save_name=os.path.abspath(perf))
+                    try:
+                        self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
+                    except Exception as ex:
+                        traceback.print_tb(ex.__traceback__)
                 if os.path.isfile(align_file_name): # check once again whether the alignment was successful
                     aligned_perf.append(perf)
 
@@ -346,9 +354,9 @@ class PieceMeta:
             os.chdir(current_dir)
             shutil.copy(midi_file_path, midi_file_path+'old')
             midi_utils.to_midi_zero(midi_file_path, save_midi=True, save_name=midi_file_path)
+            os.chdir(align_dir)
             shutil.copy(midi_file_path, os.path.join(align_dir, 'infer.mid'))
             try:
-                os.chdir(align_dir)
                 subprocess.check_call(["sh", "MIDIToMIDIAlign.sh", "score", "infer"])
             except subprocess.CalledProcessError as error:
                 traceback.print_tb(error.__traceback__)
@@ -356,6 +364,7 @@ class PieceMeta:
                 print('Fail to process {}'.format(midi_file_path))
                 os.chdir(current_dir)
             else:
+                os.chdir(current_dir)
                 align_success = True
         else:
             align_success = True
