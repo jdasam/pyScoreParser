@@ -10,7 +10,7 @@ class ScoreExtractor:
     def __init__(self, feature_keys):
         self.selected_feature_keys = feature_keys
 
-        self.dyn_emb_tab = dir_enc.define_dyanmic_embedding_table()
+        self.dyn_emb_tab = dir_enc.define_dynamic_embedding_table()
         self.tem_emb_tab = dir_enc.define_tempo_embedding_table()
 
     def extract_score_features(self, piece_data):
@@ -35,19 +35,26 @@ class ScoreExtractor:
 
     def get_note_location(self, piece_data):
         # TODO: need check up
-        locations = []
-        for _, note in enumerate(piece_data.xml_notes):
-            measure_index = note.measure_number - 1
-            locations.append(
-                feature_utils.NoteLocation(beat=utils.binary_index(piece_data.beat_positions, note.note_duration.xml_position),
-                             measure=measure_index,
-                             voice=note.voice,
-                             section=utils.binary_index(piece_data.section_positions, note.note_duration.xml_position)))
-        locations = feature_utils.make_index_continuous(locations)
+        beat_indices = [utils.binary_index(piece_data.beat_positions, x.note_duration.xml_position) for x in piece_data.xml_notes]
+        # measure_indices = [x.measure_number - 1 for x in piece_data.xml_notes]
+        measure_indices = [utils.binary_index(piece_data.measure_positions, x.note_duration.xml_position) for x in piece_data.xml_notes]
+        voice_indices =  [x.voice for x in piece_data.xml_notes]
+        section_indices = [utils.binary_index(piece_data.section_positions, x.note_duration.xml_position) for x in piece_data.xml_notes]
+        beat_indices = feature_utils.make_index_continuous(beat_indices)
+        measure_indices = feature_utils.make_index_continuous(measure_indices)
+        locations = {'beat': beat_indices, 'measure': measure_indices, 'voice':voice_indices, 'section':section_indices}
+        # for _, note in enumerate(piece_data.xml_notes):
+        #     measure_index = note.measure_number - 1
+        #     locations.append(
+        #         feature_utils.NoteLocation(beat=utils.binary_index(piece_data.beat_positions, note.note_duration.xml_position),
+        #                      measure=measure_index,
+        #                      voice=note.voice,
+        #                      section=utils.binary_index(piece_data.section_positions, note.note_duration.xml_position)))
+        # locations = feature_utils.make_index_continuous(locations)
         return locations
 
     def get_qpm_primo(self, piece_data):
-        piece_data.qpm_primo = piece_data.xml_notes[0].state_fixed.qpm
+        piece_data.qpm_primo = math.log(piece_data.xml_notes[0].state_fixed.qpm, 10)
         return piece_data.qpm_primo
 
     def get_midi_pitch(self, piece_data):
@@ -177,7 +184,7 @@ class ScoreExtractor:
                 / note.state_fixed.divisions for note in piece_data.xml_notes]
 
     def get_composer_vec(self, piece_data):
-        return feature_utils.composer_name_to_vec(piece_data.meta.composer)
+        return feature_utils.composer_name_to_vec(piece_data.composer)
 
     def get_tempo_primo(self, piece_data):
         tempo_primo_word = dir_enc.direction_words_flatten(
@@ -229,8 +236,8 @@ class PerformExtractor:
         features = []
         if 'beat_tempo' not in perform_data.perform_features:
             perform_data.perform_features['beat_tempo'] = self.get_beat_tempo(piece_data, perform_data)
-        if 'trill_parameters' not in perform_data.perform_features:
-            perform_data.perform_features['trill_parameters'] = self.get_trill_parameters(piece_data, perform_data)
+        # if 'trill_parameters' not in perform_data.perform_features:
+        #     perform_data.perform_features['trill_parameters'] = self.get_trill_parameters(piece_data, perform_data)
         for i, pair in enumerate(perform_data.pairs):
             if pair == []:
                 articulation = 0
@@ -246,8 +253,10 @@ class PerformExtractor:
                 else:
                     duration_as_quarter = xml_duration / note.state_fixed.divisions
                     second_in_tempo = duration_as_quarter / tempo.qpm * 60
+                    # TODO: fix trill notes
                     if note.note_notations.is_trill:
-                        _, actual_second = xml_utils.find_corresp_trill_notes_from_midi(piece_data, perform_data, i)
+                        # _, actual_second = xml_utils.find_corresp_trill_notes_from_midi(piece_data, perform_data, i)
+                        actual_second = second_in_tempo
                     else:
                         actual_second = midi.end - midi.start
                     articulation = actual_second / second_in_tempo
@@ -372,7 +381,7 @@ class PerformExtractor:
             if pair == []:
                 pedal = 0
             else:
-                pedal = feature_utils.pedal_sigmoid(pair['midi'].pedal_refresh_time)
+                pedal = pair['midi'].pedal_refresh_time
             features.append(pedal)
         return features
 
@@ -394,7 +403,7 @@ class PerformExtractor:
             if pair == []:
                 pedal = 0
             else:
-                pedal = feature_utils.pedal_sigmoid(pair['midi'].pedal_cut_time)
+                pedal = pair['midi'].pedal_cut_time
             features.append(pedal)
         return features
 

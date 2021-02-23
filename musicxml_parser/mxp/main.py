@@ -142,6 +142,8 @@ class MusicXMLDocument(object):
       MusicXMLParseException: if the file cannot be parsed.
     """
     score = None
+    if not isinstance(filename, str):
+      filename = str(filename)
     if filename.endswith('.mxl'):
       # Compressed MXL file. Uncompress in memory.
       try:
@@ -434,7 +436,8 @@ class MusicXMLDocument(object):
       notes_part, rests_part = get_playable_notes(part)
       notes.extend(notes_part)
       rests.extend(rests_part)
-
+    notes.sort(key=lambda x: (x.note_duration.xml_position,
+              x.note_duration.grace_order, -x.pitch[1]))
     return notes, rests
 
 
@@ -568,6 +571,26 @@ class MusicXMLDocument(object):
         #
       # for note in measure.notes:
       #     note.on_beat = check_note_on_beat(note, measure_start, measure_length)
+    return beat_piece
+
+  def get_interval_positions(self, interval_in_16th):
+    piano = self.parts[0]
+    num_measure = len(piano.measures)
+    time_signatures = self.get_time_signatures()
+    time_sig_position = [time.xml_position for time in time_signatures]
+    beat_piece = []
+    for i in range(num_measure):
+      measure = piano.measures[i]
+      measure_start = measure.start_xml_position
+      corresp_time_sig_idx = self.binary_index(time_sig_position, measure_start)
+      corresp_time_sig = time_signatures[corresp_time_sig_idx]
+
+      num_beat_in_measure = int(corresp_time_sig.numerator * 16 / (corresp_time_sig.denominator * interval_in_16th))
+      inter_beat_interval = corresp_time_sig.state.divisions * interval_in_16th / 4 
+
+      for j in range(num_beat_in_measure):
+        beat = measure_start + j * inter_beat_interval
+        beat_piece.append(beat)
     return beat_piece
 
   def get_accidentals(self):

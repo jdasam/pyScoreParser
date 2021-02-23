@@ -38,7 +38,7 @@ DEFAULT_PERFORM_FEATURES = ['beat_tempo', 'velocity', 'onset_deviation', 'articu
 
 # total data class
 class DataSet:
-    def __init__(self, path, save=False):
+    def __init__(self, path, save=False, features_only=False):
         self.path = path
 
         self.pieces = []
@@ -57,16 +57,16 @@ class DataSet:
         self.num_score_notes = 0
         self.num_performance_notes = 0
 
-        # self.default_perforddmances = self.performances
-        # TGK: what for?
-
         # self._load_all_scores()
-        scores, score_midis, perform_midis, composers = self.load_data()
+        scores, score_midis, perform_midis, composers = self.load_data_list()
         self.scores = scores
         self.score_midis = score_midis
         self.perform_midis = perform_midis
         self.composers = composers
-        self.load_all_piece(scores, perform_midis, score_midis, composers, save=save)
+        if features_only:
+            self.load_all_features(scores, perform_midis, score_midis, composers)
+        else:
+            self.load_all_piece(scores, perform_midis, score_midis, composers, save=save)
 
     @classmethod
     @abstractmethod
@@ -86,16 +86,41 @@ class DataSet:
                 print(f'Error while processing {perf.piece}. Error type :{ex}')
         self.num_performances = len(self.performances)
 
-    '''
-    # TGK : same as extract_selected_features(DEFAULT_SCORE_FEATURES) ...
-    def extract_all_features(self):
+    def load_all_features(self, scores, perform_midis, score_midis, composers,):
+        for n in tqdm(range(len(scores))):
+            score_feature_path = Path(scores[n]).parent / 'score_feature.dat'
+            if score_feature_path.exists():
+                piece = PieceData(scores[n], perform_midis[n], score_midis[n], composers[n], save=False, features_only=True)
+                self.pieces.append(piece)
+            # try:
+            #     piece = PieceData(scores[n], perform_midis[n], score_midis[n], composers[n], save=False, features_only=True)
+            #     self.pieces.append(piece)
+            # except Exception as ex:
+            #     print(f'Error while processing {scores[n]}. Error type :{ex}')
+        self.num_performances = len(self.performances)
+
+    def extract_all_features(self, save=False):
         score_extractor = feature_extraction.ScoreExtractor(DEFAULT_SCORE_FEATURES)
         perform_extractor = feature_extraction.PerformExtractor(DEFAULT_PERFORM_FEATURES)
         for piece in self.pieces:
-            piece.score_features = score_extractor.extract_score_features(piece)
+            try:
+                piece.score_features = score_extractor.extract_score_features(piece.score)
+                if save:
+                    piece.save_score_features()
+            except Exception as ex:
+                print(f'Error while processing {piece.meta.xml_path}. Error type :{ex}')
+
             for perform in piece.performances:
-                perform.perform_features = perform_extractor.extract_perform_features(piece, perform)
-    '''
+                if perform is None:
+                    continue
+                try:
+                    perform.perform_features = perform_extractor.extract_perform_features(piece, perform)
+                    if save:
+                        perform.save_perform_features()
+                except Exception as ex:
+                    print(f'Error while processing {perform.midi_path}. Error type :{ex}')
+
+
 
     def _sort_performances(self):
         # TODO: move to EmotionDataset
@@ -200,71 +225,103 @@ class DataSet:
         return str(self.__dict__)
 
 
-
 # score data class
 class PieceData:
-    def __init__(self, xml_path, perform_lists, score_midi_path=None, composer=None, save=False):
+    def __init__(self, xml_path, perform_lists, score_midi_path=None, composer=None, save=False, features_only=False):
         if score_midi_path == None:
             score_midi_path = os.path.dirname(xml_path) + '/' + Path(xml_path).stem + '_score.mid'
         self.meta = PieceMeta(xml_path, perform_lists=perform_lists, score_midi_path=score_midi_path, composer=composer)
         self.performances = []
-        
-        score_dat_path = os.path.dirname(xml_path) + '/score.dat'
 
-        if save:
-            self.score = ScoreData(xml_path, score_midi_path)
-            with open(score_dat_path , 'wb') as f:
-                pickle.dump(self.score, f, protocol=2)
+        path = Path(xml_path)
+        if 'musicxml_cleaned.musicxml' in xml_path:
+            score_dat_path = path.parent / 'score.dat'
+            score_feat_path = path.parent / 'score_feature.dat'
         else:
-            if Path(score_dat_path).exists():
-                with open(score_dat_path, 'rb') as f:
-                    u = cPickle.Unpickler(f)
-                    self.score = u.load()
-            else:
-                print(f'not exist {score_dat_path}. make one')
-                self.score = ScoreData(xml_path, score_midi_path)
+            score_dat_path = path.with_suffix('.dat')
+            score_feat_path = path.parent / (path.stem + '_feature.dat')
+
+        if features_only:
+            with open(score_feat_path, "rb") as f:
+                self.score_features = cPickle.load(f)
+            with open(score_dat_path, 'rb') as f:
+                u = cPickle.Unpickler(f)
+                score = u.load()
+                self.notes_graph = score.notes_graph
+                self.num_notes = score.num_notes
+            for perform in perform_lists:
+                feature_path =  Path(perform).parent / Path(perform).name.replace('.mid', '_feature.dat')
+                if feature_path.exists():
+                    perform_data = PerformData(perform, self.meta, features_only=True)
+                    # if len(perform_data.perform_features['align_matched']) - sum(perform_data.perform_features['align_matched']) > 800:
+                    #     continue
+                    # else:
+                    self.performances.append(perform_data)
+        else:
+            if save:
+                self.score = ScoreData(xml_path, score_midi_path, composer=composer)
                 with open(score_dat_path , 'wb') as f:
                     pickle.dump(self.score, f, protocol=2)
-
-        # ScoreData alias
-        self.xml_obj = self.score.xml_obj
-        self.xml_notes = self.score.xml_notes
-        self.num_notes = self.score.num_notes
-        self.notes_graph = self.score.notes_graph
-        self.score_midi_notes = self.score.score_midi_notes
-        self.score_match_list = self.score.score_match_list
-        self.score_pairs = self.score.score_pairs
-        self.measure_positions = self.score.measure_positions
-        self.beat_positions = self.score.beat_positions
-        self.section_positions = self.score.section_positions
-    
-        # TODO: move to ScoreData
-        self.score_features = {}
-        self.meta._check_perf_align()
-
-
-        for perform in perform_lists:
-            perform_dat_path = Path(perform).parent / Path(perform).name.replace('.mid', '.dat')
-            if not save:
-                if not perform_dat_path.exists():
-                    print(f'not exist {perform_dat_path}.')
-                with open(perform_dat_path, 'rb') as f:
-                    u = cPickle.Unpickler(f)
-                    perform_data = u.load()
-                    self.performances.append(perform_data)
             else:
-                try:
-                    perform_data = PerformData(perform, self.meta)
-                    self._align_perform_with_score(perform_data)
-                    self.performances.append(perform_data)
-                except:
-                    perform_data = None
-                    print(f'Cannot align {perform}')
-                    self.performances.append(None)
-            if save:
-                if perform_data is not None: 
-                    with open(perform_dat_path, 'wb') as f:
-                        pickle.dump(perform_data, f, protocol=2)
+                if Path(score_dat_path).exists:
+                    with open(score_dat_path, 'rb') as f:
+                        u = cPickle.Unpickler(f)
+                        self.score = u.load()
+                else:
+                    print(f'not exist {score_dat_path}. make one')
+                    self.score = ScoreData(xml_path, score_midi_path, composer=composer)
+                    with open(score_dat_path , 'wb') as f:
+                        pickle.dump(self.score, f, protocol=2)
+
+            # ScoreData alias
+            self.xml_obj = self.score.xml_obj
+            self.xml_notes = self.score.xml_notes
+            self.num_notes = self.score.num_notes
+            self.notes_graph = self.score.notes_graph
+            self.score_midi_notes = self.score.score_midi_notes
+            self.score_match_list = self.score.score_match_list
+            self.score_pairs = self.score.score_pairs
+            self.measure_positions = self.score.measure_positions
+            self.beat_positions = self.score.beat_positions
+            self.section_positions = self.score.section_positions
+        
+            # TODO: move to ScoreData
+            self.score_features = {}
+            self.meta._check_perf_align(align=True)
+
+            for perform in perform_lists:
+                perform_dat_path = Path(perform).parent / Path(perform).name.replace('.mid', '.dat')
+                if not save:
+                    if not perform_dat_path.exists:
+                        print(f'not exist {perform_dat_path}.')
+                        continue
+                    with open(perform_dat_path, 'rb') as f:
+                        u = cPickle.Unpickler(f)
+                        perform_data = u.load()
+                        # if perform_data.num_unmatched_notes > 800:
+                        #     self.performances.append(None)
+                        # else:
+                        perform_data.pairs = matching.make_xml_midi_pair(self.score.xml_notes, perform_data.midi_notes, perform_data.match_between_xml_perf)
+                        self.performances.append(perform_data)
+                else:
+                    try:
+                        perform_data = PerformData(perform, self.meta)
+                        self._align_perform_with_score(perform_data)
+                        # if perform_data.num_unmatched_notes > 800:
+                        #     self.performances.append(None)
+                        # else:
+                        self.performances.append(perform_data)
+                    except:
+                        perform_data = None
+                        print(f'Cannot align {perform}')
+                        self.performances.append(None)
+                    if perform_data is not None:
+                        # delete pairs to reduce size 
+                        copied_pairs = copy.copy(perform_data.pairs)
+                        perform_data.pairs = []
+                        with open(perform_dat_path, 'wb') as f:
+                            pickle.dump(perform_data, f, protocol=2)
+                        perform_data.pairs = copied_pairs
     
     def extract_perform_features(self, target_features):
         perform_extractor = feature_extraction.PerformExtractor(target_features)
@@ -275,7 +332,16 @@ class PieceData:
 
     def extract_score_features(self, target_features):
         score_extractor = feature_extraction.ScoreExtractor(target_features)
-        self.score_features = score_extractor.extract_score_features(self)
+        self.score_features = score_extractor.extract_score_features(self.score)
+
+    def save_score_features(self):
+        if 'musicxml_cleaned.musicxml' in self.meta.xml_path:
+            score_feature_path = self.meta.folder_path + '/score_feature.dat'
+        else:
+            path = Path(self.meta.xml_path)
+            score_feature_path = path.parent / (path.stem + '_feature.dat')
+        with open(score_feature_path, 'wb') as f:
+            pickle.dump(self.score_features, f,  protocol=2)
 
     def _load_performances(self):
         for perf_midi_name in self.meta.perform_lists:
@@ -292,6 +358,9 @@ class PieceData:
         clean_match = utils.get_nonzero_list(perform.pairs)
         print(f'match after Nakamura:{len(match)} (diff:{len(self.score_pairs) - len(match)}), \nmatch_three:{len(match_three)}, match after cleaning:{len(clean_match)} (diff:{len(match) - len(clean_match)})')
 
+        for i in perform.mismatched_indices:
+            perform.match_between_xml_perf[i] = []
+            perform.pairs[i] = []
         print('Performance path is ', perform.midi_path)
         perform._count_matched_notes()
 
@@ -313,7 +382,7 @@ class PieceMeta:
     def __str__(self):
         return str(self.__dict__)
 
-    def _check_perf_align(self):
+    def _check_perf_align(self, align=True):
         # TODO: better to move PieceData?
         aligned_perf = []
         for perf in self.perform_lists:
@@ -322,7 +391,7 @@ class PieceMeta:
             if os.path.isfile(align_file_name):
                 print(f'{align_file_name} already exists. load it.')
                 aligned_perf.append(perf)
-            else:
+            elif align:
                 print(f'make {align_file_name}.')
                 try:
                     self.align_score_and_perf_with_nakamura(os.path.abspath(perf), self.score_midi_path)
@@ -335,6 +404,8 @@ class PieceMeta:
                         traceback.print_tb(ex.__traceback__)
                 if os.path.isfile(align_file_name): # check once again whether the alignment was successful
                     aligned_perf.append(perf)
+            else:
+                pass
 
         self.perf_file_list = aligned_perf
 
@@ -384,24 +455,38 @@ class PieceMeta:
 
 # performance data class
 class PerformData:
-    def __init__(self, midi_path, meta):
+    def __init__(self, midi_path, meta, features_only=False):
         self.midi_path = midi_path
-        self.midi = midi_utils.to_midi_zero(self.midi_path)
-        self.midi = midi_utils.add_pedal_inf_to_notes(self.midi)
-        self.midi_notes = self.midi.instruments[0].notes
-        self.corresp_path = os.path.splitext(self.midi_path)[0] + '_infer_corresp.txt'
-        self.corresp = matching.read_corresp(self.corresp_path)
-        self.perform_features = {}
-        self.match_between_xml_perf = None
-        
-        self.pairs = []
-        self.valid_position_pairs = []
-
-        self.num_matched_notes = 0
-        self.num_unmatched_notes = 0
-        self.tempos = []
-
         self.meta = meta
+        if features_only:
+            feature_path =  Path(midi_path).parent / Path(midi_path).name.replace('.mid', '_feature.dat')
+            with open(feature_path, "rb") as f:
+                self.perform_features = cPickle.load(f)
+
+        else:
+            self.midi = midi_utils.to_midi_zero(self.midi_path)
+            self.midi = midi_utils.add_pedal_inf_to_notes(self.midi)
+            self.midi_notes = self.midi.instruments[0].notes
+            self.corresp_path = os.path.splitext(self.midi_path)[0] + '_infer_corresp.txt'
+            self.corresp = matching.read_corresp(self.corresp_path)
+            self.match_between_xml_perf = None
+            self.mismatched_indices = []
+            
+            self.pairs = []
+            self.valid_position_pairs = []
+
+            self.num_matched_notes = 0
+            self.num_unmatched_notes = 0
+            self.tempos = []
+            self.perform_features = {}
+
+
+    def save_perform_features(self):
+        perform_feature_path = self.midi_path.split('.mid')[0] + '_feature.dat'
+        # delete self.pairs before dump
+        with open(perform_feature_path, 'wb') as f:
+            pickle.dump(self.perform_features, f,  protocol=2)
+        
 
     def __str__(self):
         return str(self.__dict__)
@@ -419,10 +504,11 @@ class PerformData:
 
 
 class ScoreData:
-    def __init__(self, xml_path, score_midi_path, read_xml_only=False):
+    def __init__(self, xml_path, score_midi_path, composer, read_xml_only=False):
         self.xml_obj = None
         self.xml_notes = None
         self.num_notes = 0
+        self.composer = composer
 
         # self.score_performance_match = []
         self.notes_graph = []
@@ -432,7 +518,7 @@ class ScoreData:
         self.measure_positions = []
         self.beat_positions = []
         self.section_positions = []
-
+        self.score_features = {}
         self._load_score_xml(xml_path)
         if not read_xml_only:
             self._load_or_make_score_midi(score_midi_path)
@@ -469,7 +555,7 @@ class ScoreData:
 
     def make_score_midi(self, midi_file_name):
         midi_notes, midi_pedals = xml_utils.xml_notes_to_midi(self.xml_notes)
-        xml_utils.save_midi_notes_as_piano_midi(midi_notes, [], midi_file_name, bool_pedal=True)
+        midi_utils.save_midi_notes_as_piano_midi(midi_notes, [], midi_file_name, bool_pedal=True)
         
     def _match_score_xml_to_midi(self):
         self.score_match_list = matching.match_xml_to_midi(self.xml_notes, self.score_midi_notes)
@@ -479,15 +565,39 @@ class ScoreData:
         print(f'nonzero_score_pairs: {len(utils.get_nonzero_list(self.score_pairs))}')
 
 
-class YamahaDataset(DataSet):
-    def __init__(self, path, save):
-        super().__init__(path, save=save)
+class AsapDataset(DataSet):
+    def __init__(self, path, save, features_only=False):
+        super().__init__(path, save=save, features_only=features_only)
 
-    def load_data(self):
+    def load_data_list(self):
+        path = Path(self.path)
+        xml_list = sorted(path.glob('**/*.musicxml'))
+        score_midis = [xml.parent / 'midi_score.mid' for xml in xml_list]
+        composers = [xml.relative_to(self.path).parts[0] for xml in xml_list]
+
+        perform_lists = []
+        for xml in xml_list:
+            midis = sorted(xml.parent.glob('*.mid')) + sorted(xml.parent.glob('*.MID'))
+            midis = [str(midi) for midi in midis if midi.name not in ['midi_score.mid', 'midi_cleaned.mid']]
+            midis = [midi for midi in midis if not 'XP' in midi]
+            perform_lists.append(midis)
+
+        # Path -> string wrapper
+        xml_list = [str(xml) for xml in xml_list]
+        score_midis = [str(midi) for midi in score_midis]
+        return xml_list, score_midis, perform_lists, composers
+
+
+class YamahaDataset(DataSet):
+    def __init__(self, path, save, features_only=False):
+        super().__init__(path, save=save, features_only=features_only)
+
+    def load_data_list(self):
         path = Path(self.path)
         xml_list = sorted(path.glob('**/*.musicxml'))
         score_midis = [xml.parent / 'midi_cleaned.mid' for xml in xml_list]
         composers = [xml.relative_to(self.path).parts[0] for xml in xml_list]
+        # composers = ['Chopin' for xml in xml_list]
 
         perform_lists = []
         for xml in xml_list:
@@ -503,26 +613,34 @@ class YamahaDataset(DataSet):
 
 
 class EmotionDataset(DataSet):
-    def __init__(self, path, save=False):
-        super().__init__(path, save=save)
+    def __init__(self, path, save=False, features_only=False):
+        super().__init__(path, save=save, features_only=features_only)
 
-    def load_data(self):
+    def load_data_list(self):
         path = Path(self.path)
         xml_list = sorted(path.glob('**/*.musicxml'))
-        score_midis = [xml.stem + '_midi_cleaned.mid' for xml in xml_list]
+        score_midis = [xml.parent / (xml.stem + '_score.mid') for xml in xml_list]
         composers = [xml.stem.split('.')[0] for xml in xml_list]
 
         perform_lists = []
         for xml in xml_list:
             midis = sorted(xml.parent.glob(f'{xml.stem}*.mid'))
-            midis = [str(midi) for midi in midis if midi.name not in ['midi.mid', 'midi_cleaned.mid']]
+            midis = [str(midi) for midi in midis if midi.name != (xml.stem + '_score.mid') ]
             perform_lists.append(midis)
 
         # Path -> string wrapper
         xml_list = [str(xml) for xml in xml_list]
         score_midis = [str(midi) for midi in score_midis]
         return xml_list, score_midis, perform_lists, composers
-
+    def load_all_features(self, scores, perform_midis, score_midis, composers,):
+        for n in tqdm(range(len(scores))):
+            if 'musicxml_cleaned.musicxml' in scores[n]:
+                score_feature_path = Path(scores[n]).parent / 'score_feature.dat'
+            else:
+                score_feature_path = Path(scores[n]).with_suffix('.dat')
+            if score_feature_path.exists():
+                piece = PieceData(scores[n], perform_midis[n], score_midis[n], composers[n], save=False, features_only=True)
+                self.pieces.append(piece)
 
 class StandardDataset(DataSet):
     def __init__(self, path, save=False):

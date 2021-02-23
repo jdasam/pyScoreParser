@@ -2,6 +2,8 @@ import os
 import random
 import numpy as np
 import pickle
+
+from numpy.lib.npyio import save
 from . import dataset_split
 from pathlib import Path
 from tqdm import tqdm
@@ -10,7 +12,8 @@ NORM_FEAT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length',
                           'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
                           'beat_tempo', 'velocity', 'onset_deviation', 'articulation', 'pedal_refresh_time',
                             'pedal_cut_time', 'pedal_at_start', 'pedal_at_end', 'soft_pedal',
-                            'pedal_refresh', 'pedal_cut', 'qpm_primo')
+                            'pedal_refresh', 'pedal_cut', 'qpm_primo', 
+                            'beat_tempo', 'beat_dynamics', 'measure_tempo', 'measure_dynamics')
 
 VNET_COPY_DATA_KEYS = ('note_location', 'align_matched', 'articulation_loss_weight')
 VNET_INPUT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length', 'qpm_primo',
@@ -21,8 +24,10 @@ VNET_INPUT_KEYS = ('midi_pitch', 'duration', 'beat_importance', 'measure_length'
 
 VNET_OUTPUT_KEYS = ('beat_tempo', 'velocity', 'onset_deviation', 'articulation', 'pedal_refresh_time',
                             'pedal_cut_time', 'pedal_at_start', 'pedal_at_end', 'soft_pedal',
-                            'pedal_refresh', 'pedal_cut', 'qpm_primo', 'beat_tempo', 'beat_dynamics',
-                            'measure_tempo', 'measure_dynamics')
+                            'pedal_refresh', 'pedal_cut')
+VNET_BEAT_KEYS = ('beat_tempo', 'beat_dynamics')
+VNET_MEAS_KEYS = ('measure_tempo', 'measure_dynamics')
+                            # , 'beat_tempo', 'beat_dynamics', 'measure_tempo', 'measure_dynamics')
 
 
 class ScorePerformPairData:
@@ -42,7 +47,9 @@ class PairDataset:
         self.feature_stats = None
         for piece in dataset.pieces:
             for performance in piece.performances:
-                self.data_pairs.append(ScorePerformPairData(piece, performance))
+                if performance is not None \
+                        and len(performance.perform_features['align_matched']) - sum(performance.perform_features['align_matched']) < 800:
+                    self.data_pairs.append(ScorePerformPairData(piece, performance))
 
     def get_squeezed_features(self, target_feat_keys):
         squeezed_values = dict()
@@ -61,7 +68,6 @@ class PairDataset:
         self.feature_stats = cal_mean_stds(squeezed_values, target_feat_keys)
 
     def update_dataset_split_type(self, valid_set_list=dataset_split.VALID_LIST, test_set_list=dataset_split.TEST_LIST):
-        # TODO: the split
         for pair in self.data_pairs:
             path = pair.piece_path
             for valid_name in valid_set_list:
@@ -80,7 +86,7 @@ class PairDataset:
     def shuffle_data(self):
         random.shuffle(self.data_pairs)
 
-    def save_features_for_virtuosoNet(self, save_folder):
+    def save_features_for_virtuosoNet(self, save_folder, update_stats=True, valid_set_list=dataset_split.VALID_LIST, test_set_list=dataset_split.TEST_LIST):
         '''
         Convert features into format of VirtuosoNet training data
         :return: None (save file)
@@ -91,17 +97,20 @@ class PairDataset:
         save_folder = Path(save_folder)
         split_types = ['train', 'valid', 'test']
 
-        save_folder.mkdir()
-        for split in split_types:
-            (save_folder / split).mkdir()
-
-        training_data = []
-        validation_data = []
-        test_data = []
-
+        if not save_folder.is_dir():
+            save_folder.mkdir()
+            for split in split_types:
+                if not (save_folder / split).is_dir():
+                    (save_folder / split).mkdir()
+    
+        if update_stats:
+            self.update_mean_stds_of_entire_dataset()
+        self.update_dataset_split_type(valid_set_list=valid_set_list, test_set_list=test_set_list)
+        
         for pair_data in tqdm(self.data_pairs):
             formatted_data = dict()
-            formatted_data['input_data'], formatted_data['output_data'] = convert_feature_to_VirtuosoNet_format(pair_data.features, self.feature_stats)
+            formatted_data['input_data'], formatted_data['output_data'], formatted_data['meas_level_data'], formatted_data['beat_level_data'] = \
+                 convert_feature_to_VirtuosoNet_format(pair_data.features, self.feature_stats)
             for key in VNET_COPY_DATA_KEYS:
                 formatted_data[key] = pair_data.features[key]
             formatted_data['graph'] = pair_data.graph_edges
@@ -110,12 +119,15 @@ class PairDataset:
 
             save_name = _flatten_path(
                 Path(pair_data.perform_path).relative_to(Path(self.dataset_path))) + '.dat'
-           
+
             with open(save_folder / pair_data.split_type / save_name, "wb") as f:
                 pickle.dump(formatted_data, f, protocol=2)
   
         with open(save_folder / "stat.dat", "wb") as f:
-            pickle.dump(self.feature_stats, f, protocol=2)
+            pickle.dump({'stats': self.feature_stats, 
+                         'input_keys': VNET_INPUT_KEYS, 
+                         'output_keys': VNET_OUTPUT_KEYS, 
+                         'measure_keys': VNET_MEAS_KEYS}, f, protocol=2)
         
 
 def get_feature_from_entire_dataset(dataset, target_score_features, target_perform_features):
@@ -141,8 +153,11 @@ def normalize_feature(data_values, target_feat_keys):
         # data_values[feat] = [(x-mean) / (var ** 0.5) for x in data_values[feat]]
         for i, perf in enumerate(data_values[feat]):
             data_values[feat][i] = [(x-mean) / (var ** 0.5) for x in perf]
-
     return data_values
+
+
+def normalize_pedal_value(pedal_value):
+    return (pedal_value - 64)/128
 
 # def combine_dict_to_array():
 
@@ -183,9 +198,9 @@ def cal_mean_stds(feat_datas, target_features):
     return stats
 
 
-def convert_feature_to_VirtuosoNet_format(feature_data, stats, input_keys=VNET_INPUT_KEYS, output_keys=VNET_OUTPUT_KEYS):
-    input_data = []
-    output_data = []
+def convert_feature_to_VirtuosoNet_format(feature_data, stats, input_keys=VNET_INPUT_KEYS, output_keys=VNET_OUTPUT_KEYS, meas_keys=VNET_MEAS_KEYS, beat_keys=VNET_BEAT_KEYS):
+    if 'num_notes' not in feature_data.keys():
+        feature_data['num_notes'] = len(feature_data[input_keys[0]])
 
     def check_if_global_and_normalize(key):
         value = feature_data[key]
@@ -212,38 +227,75 @@ def convert_feature_to_VirtuosoNet_format(feature_data, stats, input_keys=VNET_I
             total_length += length
         return total_length
 
+    def make_feat_to_array(keys):
+        datas = [] 
+        for key in keys:
+            value = check_if_global_and_normalize(key)
+            datas.append(value)
+        dimension = cal_dimension(datas)
+        array = np.zeros((feature_data['num_notes'], dimension))
+        current_idx = 0
+        for value in datas:
+            if isinstance(value[0], list):
+                length = len(value[0])
+                array[:, current_idx:current_idx + length] = value
+            else:
+                length = 1
+                array[:,current_idx] = value
+            current_idx += length
+        return array
 
-    for key in input_keys:
-        value = check_if_global_and_normalize(key)
-        input_data.append(value)
-    for key in output_keys:
-        value = check_if_global_and_normalize(key)
-        output_data.append(value)
+    input_array = make_feat_to_array(input_keys)
+    output_array = make_feat_to_array(output_keys)
+    meas_array = make_feat_to_array(meas_keys)
+    beat_array = make_feat_to_array(beat_keys)
+    # for key in input_keys:
+    #     value = check_if_global_and_normalize(key)
+    #     input_data.append(value)
+    # for key in output_keys:
+    #     value = check_if_global_and_normalize(key)
+    #     output_data.append(value)
+    # for key in meas_keys:
+    #     value = check_if_global_and_normalize(key)
+    #     meas_data.append(value)
 
-    input_dimension = cal_dimension(input_data)
-    output_dimension = cal_dimension(output_data)
+    # input_dimension = cal_dimension(input_data)
+    # output_dimension = cal_dimension(output_data)
+    # meas_dimension = cal_dimension(meas_data)
 
-    input_array = np.zeros((feature_data['num_notes'], input_dimension))
-    output_array = np.zeros((feature_data['num_notes'], output_dimension))
+    # input_array = np.zeros((feature_data['num_notes'], input_dimension))
+    # output_array = np.zeros((feature_data['num_notes'], output_dimension))
+    # meas_array = np.zeros((feature_data['num_notes'], meas_dimension))
 
-    current_idx = 0
+    # current_idx = 0
 
-    for value in input_data:
-        if isinstance(value[0], list):
-            length = len(value[0])
-            input_array[:, current_idx:current_idx + length] = value
-        else:
-            length = 1
-            input_array[:,current_idx] = value
-        current_idx += length
-    current_idx = 0
-    for value in output_data:
-        if isinstance(value[0], list):
-            length = len(value[0])
-            output_array[:, current_idx:current_idx + length] = value
-        else:
-            length = 1
-            output_array[:,current_idx] = value
-        current_idx += length
+    # for value in input_data:
+    #     if isinstance(value[0], list):
+    #         length = len(value[0])
+    #         input_array[:, current_idx:current_idx + length] = value
+    #     else:
+    #         length = 1
+    #         input_array[:,current_idx] = value
+    #     current_idx += length
+    # current_idx = 0
+    # for value in output_data:
+    #     if isinstance(value[0], list):
+    #         length = len(value[0])
+    #         output_array[:, current_idx:current_idx + length] = value
+    #     else:
+    #         length = 1
+    #         output_array[:,current_idx] = value
+    #     current_idx += length
+    # current_idx = 0
+    # for value in meas_data:
+    #     if isinstance(value[0], list):
+    #         length = len(value[0])
+    #         meas_array[:, current_idx:current_idx + length] = value
+    #     else:
+    #         length = 1
+    #         meas_array[:,current_idx] = value
+    #     current_idx += length
 
-    return input_array, output_array
+    return input_array, output_array, meas_array, beat_array
+
+

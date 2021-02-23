@@ -170,8 +170,8 @@ def add_pedal_inf_to_notes(midi_obj):
     sustain_pedals_positions = [pedal.start for pedal in sustain_pedals]
     soft_pedals = read_sustain_pedal(midi_obj,search_target=(67,)) # soft pedal CC == 67
     soft_pedals_positions = [pedal.start for pedal in soft_pedals]
-    sostenuto_pedals = read_sustain_pedal(midi_obj, search_target=(66,)) #sostenuto pedal CC == 66
-    sostenuto_pedals_positions = [pedal.start for pedal in sostenuto_pedals]
+    # sostenuto_pedals = read_sustain_pedal(midi_obj, search_target=(66,)) #sostenuto pedal CC == 66
+    # sostenuto_pedals_positions = [pedal.start for pedal in sostenuto_pedals]
 
     notes = midi_obj.instruments[0].notes
     saved_notes = copy.copy(notes)
@@ -181,12 +181,14 @@ def add_pedal_inf_to_notes(midi_obj):
     # notes_offset_sorted = notes
     # notes_offset_sorted.sort(key = lambda note: note.end)
 
+    # TODO: This can be become much faster if we change pedal as 1D-array
+
     for note in notes:
         pedal_index_at_note_start = binaryIndex(sustain_pedals_positions, note.start)
         pedal_index_at_note_end = binaryIndex(sustain_pedals_positions, note.end)
         soft_pedal_index = binaryIndex(soft_pedals_positions, note.start)
-        sostenuto_index_at_start = binaryIndex(sostenuto_pedals_positions, note.start)
-        sostenuto_index_at_end = binaryIndex(sostenuto_pedals_positions, note.end)
+        # sostenuto_index_at_start = binaryIndex(sostenuto_pedals_positions, note.start)
+        # sostenuto_index_at_end = binaryIndex(sostenuto_pedals_positions, note.end)
 
         note.pedal_at_start = sustain_pedals[pedal_index_at_note_start].value
         note.pedal_at_end = sustain_pedals[pedal_index_at_note_end].value
@@ -195,8 +197,7 @@ def add_pedal_inf_to_notes(midi_obj):
         # note.sostenuto_at_end = sostenuto_pedals[sostenuto_index_at_end].value
 
         note.pedal_refresh, note.pedal_refresh_time = \
-            cal_pedal_refresh_in_note(note, notes, sustain_pedals,sustain_pedals_positions,
-                                        pedal_index_at_note_start, pedal_index_at_note_end)
+            cal_pedal_refresh_in_note(note, sustain_pedals, pedal_index_at_note_start, pedal_index_at_note_end)
         # note.sostenuto_refresh = check_pedal_refresh_in_note(note, notes, sostenuto_pedals, sostenuto_pedals_positions,
         #                                                  sostenuto_index_at_start, sostenuto_index_at_end)
 
@@ -212,10 +213,9 @@ def add_pedal_inf_to_notes(midi_obj):
     # midi_obj.instruments[0].notes = new_notes
     return midi_obj
 
-def cal_pedal_refresh_in_note(note, notes, pedals, pedals_positions, pd_ind1, pd_ind2):
-    note_index = notes.index(note)
-    search_time_end = note.end
-    lowest_pedal_value = note.pedal_at_start
+def cal_pedal_refresh_in_note(note, pedals, pd_ind1, pd_ind2):
+    if pd_ind1 == pd_ind2:
+        return note.pedal_at_start, 0
     lowest_pedal = None
     # counts only when pedal is pressed at start
     # if note.pedal_at_start == False:
@@ -228,16 +228,23 @@ def cal_pedal_refresh_in_note(note, notes, pedals, pedals_positions, pd_ind1, pd
     #         search_time_end = next_note.start
 
     # check only the pedal between note start and end
-    for i in range(pd_ind1, pd_ind2):
-        pedal = pedals[i]
-        if pedal.value < lowest_pedal_value:
-            lowest_pedal_value = pedal.value
-            lowest_pedal = pedal
-    if lowest_pedal:
-        time_ratio = (lowest_pedal.start - note.start) #/ (note.end - note.start)
-        return lowest_pedal_value, time_ratio
+    lowest_pedal = min(pedals[pd_ind1:pd_ind2], key=lambda x: x.value)
+    if lowest_pedal.value < note.pedal_at_start:
+        time_ratio = (lowest_pedal.start - note.start)
+        return lowest_pedal.value, time_ratio
     else:
-        return lowest_pedal_value, 0
+        return note.pedal_at_start, 0
+
+    # for i in range(pd_ind1, pd_ind2):
+    #     pedal = pedals[i]
+    #     if pedal.value < lowest_pedal_value:
+    #         lowest_pedal_value = pedal.value
+    #         lowest_pedal = pedal
+    # if lowest_pedal:
+    #     time_ratio = (lowest_pedal.start - note.start) #/ (note.end - note.start)
+    #     return lowest_pedal_value, time_ratio
+    # else:
+    #     return lowest_pedal_value, 0
 
 
 def cal_pedal_cut(note, notes, pedals, pedals_positions, threshold=30):
@@ -275,8 +282,6 @@ def cal_pedal_cut(note, notes, pedals, pedals_positions, threshold=30):
 def cal_pedal_cut_after(note, notes, pedals, pedals_positions, threshold=30):
     note_index = notes.index(note)
     note_end = note.end
-    lowest_pedal_value = note.pedal_at_end
-    lowest_pedal = None
     if note_index == 0:
         return 0, 0
     #check that there is no activated notes when the note starts
@@ -290,18 +295,27 @@ def cal_pedal_cut_after(note, notes, pedals, pedals_positions, threshold=30):
     #     return False, 0
     pd1 = binaryIndex(pedals_positions, note.end)
     pd2 = binaryIndex(pedals_positions, next_onset)
-
-    for i in range(pd1, pd2):
-        pedal = pedals[i]
-        if pedal.value < lowest_pedal_value:
-            lowest_pedal_value = pedal.value
-            lowest_pedal = pedal
+    if pd1 == pd2:
+        return note.pedal_at_end, 0
+    lowest_pedal = min(pedals[pd1:pd2], key=lambda x: x.value)
     notes.sort(key=lambda x:x.start)
-    if lowest_pedal:
+
+    if lowest_pedal.value < note.pedal_at_end:
         time_ratio = (lowest_pedal.start - note_end)
-        return lowest_pedal_value, time_ratio
+        return lowest_pedal.value, time_ratio
     else:
-        return lowest_pedal_value, 0
+        return note.pedal_at_end, 0
+    # for i in range(pd1, pd2):
+    #     pedal = pedals[i]
+    #     if pedal.value < lowest_pedal_value:
+    #         lowest_pedal_value = pedal.value
+    #         lowest_pedal = pedal
+    # notes.sort(key=lambda x:x.start)
+    # if lowest_pedal:
+    #     time_ratio = (lowest_pedal.start - note_end)
+    #     return lowest_pedal_value, time_ratio
+    # else:
+    #     return lowest_pedal_value, 0
 
 def to_midi_zero(midi_path, midi_min=21, midi_max=108, save_midi=False, save_name=None):
     """Convert midi files to midi-0 format (1 track). set resolution = 1000, tempo=120.
@@ -533,3 +547,95 @@ def save_note_pedal_to_CC(midi_obj, bool_pedal=False, disklavier=False):
     instrument.control_changes.append(last_pedal)
 
     return midi_obj
+
+
+def save_midi_notes_as_piano_midi(midi_notes, midi_pedals, output_name, bool_pedal=False, disklavier=False, multi_channel=False):
+    """ Generate midi file by using received midi notes and midi pedals
+
+    Args:
+        midi_notes (1-D list) : list of pretty_midi.Note() of shape (num_notes, )
+        midi_pedals (1-D list): list of pretty_midi pedal value of shape (num_pedals, ) 
+        output_name (string) : output midi file name
+        bool_pedal (boolean) : check whether the method needs to handle meaningless pedal values
+        disklavier (boolean) : unused 
+        multi_channel: if True, get midi_notes input as list of list of notes, each list corresponds to midi channel.
+
+    Returns:
+        -
+
+    Example:
+        (in data_class.py -> make_score_midi()
+        >>> midi_notes, midi_pedals = xml_utils.xml_notes_to_midi(self.xml_notes)
+        >>> xml_utils.save_midi_notes_as_piano_midi(midi_notes, [], midi_file_name, bool_pedal=True)
+
+    """
+    piano_midi = pretty_midi.PrettyMIDI()
+    piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+    if not isinstance(output_name, str):
+        output_name = str(output_name)
+    # pedal_threhsold = 60
+    # pedal_time_margin = 0.2
+    if multi_channel:
+        for n in range(len(midi_notes)):
+            piano_midi.instruments.append(pretty_midi.Instrument(program=piano_program))
+            for note in midi_notes[n]:
+                piano_midi.instruments[n].notes.append(note)
+    else:
+        piano_midi.instruments.append(pretty_midi.Instrument(program=piano_program))
+        for note in midi_notes:
+            piano_midi.instruments.notes.append(note)
+
+    # piano_midi = midi_utils.save_note_pedal_to_CC(piano_midi)
+
+    if bool_pedal:
+        for pedal in midi_pedals:
+            if pedal.value < 64:
+                pedal.value = 0
+    if multi_channel:
+        last_note_end = max([el[-1].end for el in midi_notes])
+    else: 
+        last_note_end = midi_notes[-1].end
+    # end pedal 3 seconds after the last note
+    last_pedal = pretty_midi.ControlChange(number=64, value=0, time=last_note_end + 3)
+    midi_pedals.append(last_pedal)
+
+    piano_midi.instruments[0].control_changes = midi_pedals
+
+    #
+    # if disklavier:
+    #     pedals = piano_midi.instruments[0].control_changes
+    #     pedals.sort(key=lambda x:x.time)
+    #     previous_off_time = 0
+    #
+    #     prev_high_time = 0
+    #     prev_low_time = 0
+    #
+    #     pedal_remove_candidate = []
+    #     for pedal in pedals:
+    #         if pedal.number == 67:
+    #             continue
+    #         if pedal.time < 0.2:
+    #             continue
+    #         if pedal.value < pedal_threhsold:
+    #             previous_off_time = pedal.time
+    #         else:
+    #             time_passed = pedal.time - previous_off_time
+    #             if time_passed < pedal_time_margin:  #hyperparameter
+    #                 # pedal.time = previous_off_time + pedal_time_margin
+    #                 pedal.value = 30
+    #
+    #         if pedal.value > 75:
+    #             if pedal.time - prev_high_time < 0.25:
+    #                 pedal_remove_candidate.append(pedal)
+    #             else:
+    #                 prev_high_time = pedal.time
+    #         if pedal.value < 55:
+    #             if pedal.time - prev_low_time < 0.25:
+    #                 pedal_remove_candidate.append(pedal)
+    #             else:
+    #                 prev_low_time = pedal.time
+    #
+    #     for pedal in pedal_remove_candidate:
+    #         pedals.remove(pedal)
+
+    piano_midi.write(output_name)
