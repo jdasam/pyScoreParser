@@ -12,3 +12,6 @@
 # from .xml_matching import *
 # from .midi_utils import midi_utils
 # from .musicxml_parser import mxp
+
+from . import midi_utils
+from . import musicxml_parser

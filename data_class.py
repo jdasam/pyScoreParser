@@ -16,12 +16,12 @@ from abc import abstractmethod
 from tqdm import tqdm
 import _pickle as cPickle
 
-from musicxml_parser import MusicXMLDocument
-from midi_utils import midi_utils
-import score_as_graph as score_graph, xml_midi_matching as matching
-import xml_utils
-import utils
-import feature_extraction
+from .musicxml_parser import MusicXMLDocument
+from .midi_utils import midi_utils
+from . import score_as_graph as score_graph, xml_midi_matching as matching
+from . import xml_utils
+from . import utils
+from . import feature_extraction
 
 align_dir = '/home/ilcobo2/AlignmentTool_v190813'
 
