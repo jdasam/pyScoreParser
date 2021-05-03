@@ -70,7 +70,7 @@ class DataSet:
 
     @classmethod
     @abstractmethod
-    def load_data(self):
+    def load_data_list(self):
         '''return scores, score_midis, performances, composers'''
         raise NotImplementedError
 
@@ -311,7 +311,8 @@ class PieceData:
                         #     self.performances.append(None)
                         # else:
                         self.performances.append(perform_data)
-                    except:
+                    except Exception as ex:
+                        traceback.print_tb(ex.__traceback__)
                         perform_data = None
                         print(f'Cannot align {perform}')
                         self.performances.append(None)
@@ -354,13 +355,14 @@ class PieceData:
         match = utils.get_nonzero_list(perform.match_between_xml_perf)
         perform.pairs = matching.make_xml_midi_pair(self.score.xml_notes, perform.midi_notes, perform.match_between_xml_perf)
         match_three = utils.get_nonzero_list(perform.pairs)
-        perform.pairs, perform.valid_position_pairs = matching.make_available_xml_midi_positions(perform.pairs)
-        clean_match = utils.get_nonzero_list(perform.pairs)
-        print(f'match after Nakamura:{len(match)} (diff:{len(self.score_pairs) - len(match)}), \nmatch_three:{len(match_three)}, match after cleaning:{len(clean_match)} (diff:{len(match) - len(clean_match)})')
+        perform.valid_position_pairs, perform.mismatched_indices = matching.make_available_xml_midi_positions(perform.pairs)
+        # perform.pairs, perform.valid_position_pairs = matching.make_available_xml_midi_positions(perform.pairs)
 
         for i in perform.mismatched_indices:
             perform.match_between_xml_perf[i] = []
             perform.pairs[i] = []
+        clean_match = utils.get_nonzero_list(perform.pairs)
+        print(f'match after Nakamura:{len(match)} (diff:{len(self.score_pairs) - len(match)}), \nmatch_three:{len(match_three)}, match after cleaning:{len(clean_match)} (diff:{len(match) - len(clean_match)})')
         print('Performance path is ', perform.midi_path)
         perform._count_matched_notes()
 
@@ -388,6 +390,7 @@ class PieceMeta:
         for perf in self.perform_lists:
             align_file_name = os.path.splitext(perf)[0] + '_infer_corresp.txt'
             # align_file_name = Path(perf).parent / (Path(perf).stem + '_infer_corresp.txt')
+            print(perf, align_file_name)
             if os.path.isfile(align_file_name):
                 print(f'{align_file_name} already exists. load it.')
                 aligned_perf.append(perf)
@@ -555,7 +558,8 @@ class ScoreData:
 
     def make_score_midi(self, midi_file_name):
         midi_notes, midi_pedals = xml_utils.xml_notes_to_midi(self.xml_notes)
-        midi_utils.save_midi_notes_as_piano_midi(midi_notes, [], midi_file_name, bool_pedal=True)
+        # midi_notes becomes lists of notes (per part) now.
+        midi_utils.save_midi_notes_as_piano_midi(midi_notes, [], midi_file_name, bool_pedal=True, multi_channel=True)
         
     def _match_score_xml_to_midi(self):
         self.score_match_list = matching.match_xml_to_midi(self.xml_notes, self.score_midi_notes)
