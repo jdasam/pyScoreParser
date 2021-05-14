@@ -586,13 +586,43 @@ class MusicXMLDocument(object):
       corresp_time_sig = time_signatures[corresp_time_sig_idx]
 
       num_beat_in_measure = int(corresp_time_sig.numerator * 16 / (corresp_time_sig.denominator * interval_in_16th))
+      if num_beat_in_measure == 0:
+        raise Exception(f'measure is longer than a interval: {corresp_time_sig.numerator} / {corresp_time_sig.denominator}')
       inter_beat_interval = corresp_time_sig.state.divisions * interval_in_16th / 4 
 
-      for j in range(num_beat_in_measure):
-        beat = measure_start + j * inter_beat_interval
-        beat_piece.append(beat)
-    return beat_piece
+      full_measure_length = corresp_time_sig.state.divisions * corresp_time_sig.numerator / corresp_time_sig.denominator * 4
+      if i < num_measure - 1:
+        actual_measure_length = piano.measures[i + 1].start_xml_position - measure_start
+      else:
+        actual_measure_length = full_measure_length
 
+      if actual_measure_length != full_measure_length:
+        measure.implicit = True
+      else:
+        measure.implicit = False
+
+      if measure.implicit:
+        length_ratio = actual_measure_length / full_measure_length
+        minimum_beat = 1 / num_beat_in_measure
+        num_beat_in_measure = int(math.ceil(length_ratio / minimum_beat))
+        if i == 0:
+          for j in range(-num_beat_in_measure, 0):
+            beat = piano.measures[i + 1].start_xml_position + j * inter_beat_interval
+            if len(beat_piece) > 0 and beat > beat_piece[-1]:
+              beat_piece.append(beat)
+            elif len(beat_piece) == 0:
+              beat_piece.append(beat)
+        else:
+          for j in range(0, num_beat_in_measure):
+            beat = piano.measures[i].start_xml_position + j * inter_beat_interval
+            if beat > beat_piece[-1]:
+              beat_piece.append(beat)
+      else:
+        for j in range(num_beat_in_measure):
+          beat = measure_start + j * inter_beat_interval
+          beat_piece.append(beat)
+
+    return beat_piece
   def get_accidentals(self):
     directions = []
     accs = ['#', '♭', '♮']

@@ -47,8 +47,9 @@ class PairDataset:
         self.feature_stats = None
         for piece in dataset.pieces:
             for performance in piece.performances:
-                if performance is not None \
-                        and len(performance.perform_features['align_matched']) - sum(performance.perform_features['align_matched']) < 800:
+                # if performance is not None \
+                #         and len(performance.perform_features['align_matched']) - sum(performance.perform_features['align_matched']) < 800:
+                if performance is not None:
                     self.data_pairs.append(ScorePerformPairData(piece, performance))
 
     def get_squeezed_features(self, target_feat_keys):
