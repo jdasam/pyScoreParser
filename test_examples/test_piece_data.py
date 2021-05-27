@@ -1,6 +1,6 @@
-from .data_class import PieceData
+from pyScoreParser.data_class import PieceData
 from pathlib import Path
-from .feature_extraction import ScoreExtractor, PerformExtractor
+from pyScoreParser.feature_extraction import ScoreExtractor, PerformExtractor
 DEFAULT_SCORE_FEATURES = ['midi_pitch', 'duration', 'beat_importance', 'measure_length', 'qpm_primo',
                           'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
                           'beat_position', 'xml_position', 'grace_order', 'preceded_by_grace_note',
@@ -10,11 +10,11 @@ DEFAULT_PERFORM_FEATURES = ['beat_tempo', 'velocity', 'onset_deviation', 'articu
                             'pedal_cut_time', 'pedal_at_start', 'pedal_at_end', 'soft_pedal',
                             'pedal_refresh', 'pedal_cut', 'qpm_primo', 'align_matched', 'articulation_loss_weight']
 
-target = 'refactory/test_examples/Beethoven/32-1'
-performance = 'refactory/test_examples/Beethoven/32-1/DupreeF03.mid'
+target = 'Beethoven/32-1'
+performance = 'Beethoven/32-1/DupreeF03.mid'
 xml_name = 'musicxml_cleaned.musicxml'
 
-piece = PieceData(target + '/' + xml_name, [performance], target + '/' + 'midi.mid', composer='Beethoven')
+piece = PieceData(target + '/' + xml_name, [performance], target + '/' + 'midi.mid', composer='Beethoven', save=True)
 first_note = dict(duration= 60, midi_ticks= 27.5, seconds= 0.20833333333333334, pitch= 'Eb4', MIDI_pitch= 63, voice= 5, velocity= 64)
 assert (piece.score.xml_notes[0].note_duration.duration == 60 and
         piece.score.xml_notes[0].note_duration.midi_ticks == 27.5 and

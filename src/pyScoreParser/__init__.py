@@ -6,12 +6,3 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-
-# import .xml_midi_matching
-# from .xml_midi_matching import *
-# from .xml_matching import *
-# from .midi_utils import midi_utils
-# from .musicxml_parser import mxp
-
-from . import midi_utils
-from . import musicxml_parser

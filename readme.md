@@ -6,12 +6,21 @@ this repository can be used for:
 - parse score xml into a note sequence while preserving score information.
 - match midi notes in performance midi to score note, and make combined representation.
 
-### initialization
-
 ```
 git pull https://github.com/jdasam/pyScoreParser.git
-git submodule init
-git submodule update
+# install midi_utils, musicxml_parser
+git clone https://github.com/mac-marg-pianist/musicXML_parser.git
+cd musicXML_parser
+pip install .
+cd ..
+
+git clone https://github.com/mac-marg-pianist/midi_utils.git
+cd midi_utils
+pip install .
+cd ..
+
+# install AlignmentTool from https://midialignment.github.io/demo.html
+# locate the 'AligmentTool_v190813' folder inside the pyScoreParser.
 ```
 
 ### usage
@@ -22,7 +31,6 @@ git submodule update
 from pyScoreParser.data_class import PieceData
 
 
-performances = ['test_examples/Beethoven/32-1/DupreeF03.mid']  # should be list
 score_xml = 'test_examples/Beethoven/32-1/musicxml_cleaned.musicxml'
 
 piece = PieceData(xml_path)

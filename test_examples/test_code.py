@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from . import data_for_training as dft
-from . import data_class
+from pyScoreParser import data_for_training as dft
+from pyScoreParser import data_class
 import _pickle as cPickle
 from pathlib import Path
 

@@ -16,14 +16,14 @@ from abc import abstractmethod
 from tqdm import tqdm
 import _pickle as cPickle
 
-from .musicxml_parser import MusicXMLDocument
-from .midi_utils import midi_utils
+from musicxml_parser import MusicXMLDocument
+from midi_utils import midi_utils
 from . import score_as_graph as score_graph, xml_midi_matching as matching
 from . import xml_utils
 from . import utils
 from . import feature_extraction
 
-align_dir = '/home/ilcobo2/AlignmentTool_v190813'
+align_dir = '../AlignmentTool_v190813'
 
 DEFAULT_SCORE_FEATURES = ['midi_pitch', 'duration', 'beat_importance', 'measure_length', 'qpm_primo',
                           'following_rest', 'distance_from_abs_dynamic', 'distance_from_recent_tempo',
@@ -263,15 +263,15 @@ class PieceData:
                 with open(score_dat_path , 'wb') as f:
                     pickle.dump(self.score, f, protocol=2)
             else:
-                if Path(score_dat_path).exists:
+                if Path(score_dat_path).exists():
                     with open(score_dat_path, 'rb') as f:
                         u = cPickle.Unpickler(f)
                         self.score = u.load()
                 else:
                     print(f'not exist {score_dat_path}. make one')
                     self.score = ScoreData(xml_path, score_midi_path, composer=composer)
-                    with open(score_dat_path , 'wb') as f:
-                        pickle.dump(self.score, f, protocol=2)
+                    # with open(score_dat_path , 'wb') as f:
+                    #     pickle.dump(self.score, f, protocol=2)
 
             # ScoreData alias
             self.xml_obj = self.score.xml_obj
@@ -292,7 +292,7 @@ class PieceData:
             for perform in perform_lists:
                 perform_dat_path = Path(perform).parent / Path(perform).name.replace('.mid', '.dat')
                 if not save:
-                    if not perform_dat_path.exists:
+                    if not perform_dat_path.exists():
                         print(f'not exist {perform_dat_path}.')
                         continue
                     with open(perform_dat_path, 'rb') as f:
@@ -469,7 +469,8 @@ class PerformData:
         else:
             self.midi = midi_utils.to_midi_zero(self.midi_path)
             self.midi = midi_utils.add_pedal_inf_to_notes(self.midi)
-            self.midi_notes = self.midi.instruments[0].notes
+            self.midi_notes = [note for instrument in self.midi.instruments for note in instrument.notes]
+            self.midi_notes.sort(key=lambda x:x.start)
             self.corresp_path = os.path.splitext(self.midi_path)[0] + '_infer_corresp.txt'
             self.corresp = matching.read_corresp(self.corresp_path)
             self.match_between_xml_perf = None

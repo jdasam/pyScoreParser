@@ -501,7 +501,7 @@ def cal_up_trill_pitch(pitch_tuple, key, final_key, measure_accidentals):
     return up_pitch, final_pitch_string
 
 
-def xml_notes_to_midi(xml_notes, divide_channels=False):
+def xml_notes_to_midi(xml_notes, divide_channels=False, ignore_overlapped=True):
     """ Returns midi-transformed xml notes in pretty_midi.Note() format
 
     Args:
@@ -525,8 +525,8 @@ def xml_notes_to_midi(xml_notes, divide_channels=False):
     else:
         n_channels = 1
     midi_notes = [[] for el in range(n_channels)]
-    for note in xml_notes:
-        if note.is_overlapped:  # ignore overlapped notes.
+    for i, note in enumerate(xml_notes):
+        if note.is_overlapped and not divide_channels and ignore_overlapped:  
             continue
 
         pitch = note.pitch[1]
@@ -538,6 +538,14 @@ def xml_notes_to_midi(xml_notes, divide_channels=False):
             end = start + 10
         velocity = int(min(max(note.velocity,0),127))
         midi_note = pretty_midi.Note(velocity=velocity, pitch=pitch, start=start, end=end)
+        midi_note.xml_idx = i
+        
+        if hasattr(note, "cluster"):
+            midi_note.cluster = note.cluster
+        else:
+            midi_note.cluster = 0
+        if hasattr(note, "attention_weights"):
+            midi_note.attention_weights = note.attention_weights
 
         if divide_channels:
             midi_notes[int(idx_array[note.midi_channel])].append(midi_note)
