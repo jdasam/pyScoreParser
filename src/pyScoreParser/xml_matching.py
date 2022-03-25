@@ -567,8 +567,8 @@ def check_pairs(pairs):
 
 
 def read_xml_to_notes(path):
-    xml_name = path + 'musicxml_cleaned.musicxml'
-    if not os.path.isfile(xml_name):
+    xml_name = path / 'musicxml_cleaned.musicxml'
+    if not xml_name.exists()
         xml_name = path + 'xml.xml'
     xml_object = MusicXMLDocument(xml_name)
     xml_notes = get_direction_encoded_notes(xml_object)
@@ -728,7 +728,7 @@ def read_score_perform_pair(path, perf_name, composer_name, means, stds, search_
 
     else:
         score_midi_name = path + 'midi_cleaned.mid'
-        if not os.path.isfile(score_midi_name):
+        if not score_midi_name.exists()
             score_midi_name = path + 'midi.mid'
         perf_midi_name = path + perf_name + '.mid'
         corresp_name = path + perf_name + '_infer_corresp.txt'
@@ -785,8 +785,7 @@ def read_score_perform_pair(path, perf_name, composer_name, means, stds, search_
 
 def get_all_words_from_folders(path):
     entire_words = []
-    xml_list = [os.path.join(dp, f) for dp, dn, filenames in os.walk(path) for f in filenames if
-              f == 'musicxml_cleaned.musicxml']
+    xml_list = list(path.glob('**/*.musicxml_cleaned.musicxml'))
     for xmlfile in xml_list:
         print(xmlfile)
         xml_doc = MusicXMLDocument(xmlfile)
@@ -829,7 +828,7 @@ def check_data_split(path):
 
     def load_pairs_and_add_num_notes(path):
         xml_object, xml_notes = read_xml_to_notes(path)
-        filenames = os.listdir(path)
+        filenames = o
         perform_features_piece = []
 
         for file in filenames:
@@ -843,7 +842,7 @@ def check_data_split(path):
     midi_list = [os.path.join(dp, f) for dp, dn, filenames in os.walk(path) for f in filenames if
                  f == 'midi_cleaned.mid']
     for midifile in midi_list:
-        foldername = os.path.split(midifile)[0] + '/'
+        foldername = midifile.parent.name
         skip = False
         for valid_piece in VALID_LIST:
             if valid_piece in foldername:
@@ -867,12 +866,12 @@ def check_data_split(path):
                         num_notes_in_train += pair
 
     for midifile in midi_list:
-        foldername = os.path.split(midifile)[0] + '/'
+        foldername = midifile.parent.name
         for valid_piece in VALID_LIST:
             if valid_piece in foldername:
                 xml_name = foldername + 'musicxml_cleaned.musicxml'
 
-                if os.path.isfile(xml_name):
+                if xml_name.exists():
                     print(foldername)
                     piece_pairs = load_pairs_and_add_num_notes(foldername)
                     if piece_pairs is not None:
@@ -888,7 +887,7 @@ def check_data_split(path):
             if test_piece in foldername:
                 xml_name = foldername + 'musicxml_cleaned.musicxml'
 
-                if os.path.isfile(xml_name):
+                if xml_name.exists()
                     print(foldername)
                     piece_pairs = load_pairs_and_add_num_notes(foldername)
                     if piece_pairs is not None:

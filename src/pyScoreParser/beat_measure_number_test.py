@@ -6,7 +6,10 @@ import midi_utils.midi_utils as midi_utils
 import copy
 import math
 import numpy as np
+import warning
 
+
+warning.warn('pathlib not applied')
 
 def load_entire_subfolder(path):
     entire_pairs = []

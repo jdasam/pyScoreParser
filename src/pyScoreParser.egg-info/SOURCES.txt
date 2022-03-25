@@ -21,6 +21,7 @@ src/pyScoreParser/xml_matching.py
 src/pyScoreParser/xml_midi_matching.py
 src/pyScoreParser/xml_to_midi_script.py
 src/pyScoreParser/xml_utils.py
+src/pyScoreParser/xml_utils_new.py
 src/pyScoreParser.egg-info/PKG-INFO
 src/pyScoreParser.egg-info/SOURCES.txt
 src/pyScoreParser.egg-info/dependency_links.txt

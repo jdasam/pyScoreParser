@@ -6,6 +6,9 @@ this repository can be used for:
 - parse score xml into a note sequence while preserving score information.
 - match midi notes in performance midi to score note, and make combined representation.
 
+![alignment figure](images/diagram.png "diagram")
+
+### Installation
 ```
 git pull https://github.com/jdasam/pyScoreParser.git
 # install midi_utils, musicxml_parser
@@ -20,9 +23,19 @@ pip install .
 cd ..
 
 # install AlignmentTool from https://midialignment.github.io/demo.html
-# locate the 'AligmentTool_v190813' folder inside the pyScoreParser.
-```
+# and compile
+wget https://midialignment.github.io/AlignmentTool_v220127.zip
+unzip AlignmentTool_v220127.zip
+cd AlignmentTool
+./compile.sh
+cd ..
 
+# write down config in config.yaml
+!vim config.yml
+
+alignment_tool:
+    path: ./AlignmentTool
+```
 ### usage
 
 ```

@@ -7,10 +7,12 @@ Author: Dasaem Jeong, Taegyun Kwon
 Author-email: jdasam@gmail.com, ilcobo2@gmail.com
 License: UNKNOWN
 Project-URL: Bug Tracker, https://github.com/jdasam/pyScoreParser/issues
-Description: UNKNOWN
 Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
+
+UNKNOWN
+
